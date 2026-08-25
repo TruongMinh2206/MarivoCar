@@ -1,0 +1,308 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  phone         String?
+  passwordHash  String?
+  emailVerified DateTime?
+  image         String?
+  role          UserRole  @default(CUSTOMER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  bookings      Booking[]
+  reviews       Review[]
+  accounts      Account[]
+  sessions      Session[]
+  notifications Notification[]
+  auditLogs     AuditLog[]   @relation("AuditActor")
+  @@index([email])
+  @@index([role])
+}
+
+model Account {
+  id String @id @default(cuid())
+  userId String
+  type String
+  provider String
+  providerAccountId String
+  refresh_token String? @db.Text
+  access_token String? @db.Text
+  expires_at Int?
+  token_type String?
+  scope String?
+  id_token String? @db.Text
+  session_state String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id String @id @default(cuid())
+  sessionToken String @unique
+  userId String
+  expires DateTime
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token String @unique
+  expires DateTime
+  @@unique([identifier, token])
+}
+
+enum UserRole { CUSTOMER STAFF MANAGER ADMIN SUPER_ADMIN }
+model ServiceCategory {
+  id String @id @default(cuid())
+  name String
+  slug String @unique
+  description String? @db.Text
+  icon String?
+  image String?
+  isActive Boolean @default(true)
+  sortOrder Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  services Service[]
+  guides Guide[]
+  @@index([slug])
+  @@index([isActive])
+}
+
+model Service {
+  id String @id @default(cuid())
+  name String
+  slug String @unique
+  shortDescription String?
+  description String? @db.Text
+  categoryId String
+  locationId String?
+  basePrice Decimal @db.Decimal(12, 2)
+  currency String @default("VND")
+  rating Float @default(0)
+  reviewCount Int @default(0)
+  isActive Boolean @default(true)
+  isFeatured Boolean @default(false)
+  sortOrder Int @default(0)
+  metadata Json?
+  policies Json?
+  cancellationPolicy Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  category ServiceCategory @relation(fields: [categoryId], references: [id])
+  location Location? @relation(fields: [locationId], references: [id])
+  images ServiceImage[]
+  prices ServicePrice[]
+  availability ServiceAvailability[]
+  vehicles Vehicle[]
+  bookingItems BookingItem[]
+  reviews Review[]
+  @@index([slug])
+  @@index([categoryId])
+  @@index([locationId])
+  @@index([isActive, isFeatured])
+  @@index([rating])
+}
+
+model ServiceImage {
+  id String @id @default(cuid())
+  serviceId String
+  url String
+  alt String?
+  isPrimary Boolean @default(false)
+  sortOrder Int @default(0)
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  @@index([serviceId])
+}
+
+model ServicePrice {
+  id String @id @default(cuid())
+  serviceId String
+  name String
+  priceType PriceType @default(STANDARD)
+  basePrice Decimal @db.Decimal(12, 2)
+  currency String @default("VND")
+  minQuantity Int @default(1)
+  maxQuantity Int?
+  dayOfWeek Int?
+  validFrom DateTime?
+  validUntil DateTime?
+  isActive Boolean @default(true)
+  metadata Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  @@index([serviceId, isActive])
+}
+
+enum PriceType { STANDARD PEAK_SEASON WEEKEND HOLIDAY GROUP PROMOTIONAL }
+
+model ServiceAvailability {
+  id String @id @default(cuid())
+  serviceId String
+  dayOfWeek Int?
+  startTime String?
+  endTime String?
+  maxCapacity Int
+  bookedCount Int @default(0)
+  isActive Boolean @default(true)
+  specificDate DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  @@index([serviceId, isActive])
+  @@index([specificDate])
+}
+model VehicleType {
+  id String @id @default(cuid())
+  name String
+  slug String @unique
+  description String?
+  seats Int
+  luggage Int
+  icon String?
+  isActive Boolean @default(true)
+  vehicles Vehicle[]
+}
+
+model Vehicle {
+  id String @id @default(cuid())
+  serviceId String
+  vehicleTypeId String
+  name String
+  slug String
+  description String? @db.Text
+  seats Int
+  luggage Int
+  pricePerTrip Decimal @db.Decimal(12, 2)
+  pricePerHour Decimal? @db.Decimal(12, 2)
+  currency String @default("VND")
+  isActive Boolean @default(true)
+  metadata Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  service Service @relation(fields: [serviceId], references: [id])
+  vehicleType VehicleType @relation(fields: [vehicleTypeId], references: [id])
+  images VehicleImage[]
+  bookingItems BookingItem[]
+  quotes Quote[]
+  @@index([serviceId])
+  @@index([vehicleTypeId])
+}
+
+model VehicleImage {
+  id String @id @default(cuid())
+  vehicleId String
+  url String
+  alt String?
+  isPrimary Boolean @default(false)
+  sortOrder Int @default(0)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+}
+
+model Location {
+  id String @id @default(cuid())
+  name String
+  slug String @unique
+  type LocationType
+  address String?
+  latitude Decimal? @db.Decimal(10, 8)
+  longitude Decimal? @db.Decimal(11, 8)
+  area String?
+  isActive Boolean @default(true)
+  metadata Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  services Service[]
+  pickupBookings Booking[] @relation("PickupLocation")
+  dropoffBookings Booking[] @relation("DropoffLocation")
+  @@index([slug])
+  @@index([type])
+  @@index([isActive])
+}
+
+enum LocationType { AIRPORT HOTEL RESORT CITY ATTRACTION PICKUP_POINT DROPOFF_POINT }
+
+model Tour {
+  id String @id @default(cuid())
+  serviceId String @unique
+  duration String?
+  meetingPoint String?
+  schedule Json?
+  capacity Int?
+  included Json?
+  excluded Json?
+  service Service @relation(fields: [serviceId], references: [id])
+}
+
+model Ticket {
+  id String @id @default(cuid())
+  serviceId String @unique
+  validFrom DateTime?
+  validUntil DateTime?
+  entryInfo String? @db.Text
+  availability Json?
+  service Service @relation(fields: [serviceId], references: [id])
+}
+
+model Hotel {
+  id String @id @default(cuid())
+  serviceId String @unique
+  stars Int?
+  amenities Json?
+  checkIn String?
+  checkOut String?
+  service Service @relation(fields: [serviceId], references: [id])
+  rooms HotelRoom[]
+}
+
+model HotelRoom {
+  id String @id @default(cuid())
+  hotelId String
+  name String
+  description String? @db.Text
+  price Decimal @db.Decimal(12, 2)
+  currency String @default("VND")
+  capacity Int
+  amenities Json?
+  isActive Boolean @default(true)
+  hotel Hotel @relation(fields: [hotelId], references: [id])
+}
+
+model Restaurant {
+  id String @id @default(cuid())
+  serviceId String @unique
+  openingHours Json?
+  menu Json?
+  contact Json?
+  reservation Boolean @default(false)
+  service Service @relation(fields: [serviceId], references: [id])
+}
+
+model Spa {
+  id String @id @default(cuid())
+  serviceId String @unique
+  services Json?
+  schedule Json?
+  service Service @relation(fields: [serviceId], references: [id])
+}
+
+model Product {
+  id String @id @default(cuid())
+  serviceId String @unique
+  price Decimal @db.Decimal(12, 2)
+  currency String @default("VND")
+  availability Boolean @default(true)
+  details Json?
+  service Service @relation(fields: [serviceId], references: [id])
+}
