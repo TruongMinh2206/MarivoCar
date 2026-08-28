@@ -1196,8 +1196,8 @@ async function main() {
         content:
           "Phu Quoc island offers a wealth of activities for every type of traveler. From pristine beaches and snorkeling adventures to night markets and pepper farms, here are the top 10 things you shouldn't miss...",
         excerpt: "Discover the best activities and attractions in Phu Quoc",
-        heroImage: "/images/guides/top-10.jpg",
-        publishedAt: new Date(),
+        image: "/images/guides/top-10.jpg",
+
         isPublished: true,
       },
       {
@@ -1207,8 +1207,8 @@ async function main() {
         content:
           "Phu Quoc is famous for its fresh seafood, fish sauce, and pepper. Don't miss the night market for local delicacies, and be sure to try the Bun Quay at Dinh Cau Night Market...",
         excerpt: "A complete guide to the best food in Phu Quoc",
-        heroImage: "/images/guides/food-guide.jpg",
-        publishedAt: new Date(),
+        image: "/images/guides/food-guide.jpg",
+
         isPublished: true,
       },
       {
@@ -1218,8 +1218,8 @@ async function main() {
         content:
           "From airport transfers to motorbike rentals, this guide covers all transportation options in Phu Quoc. Learn about the best ways to explore the island...",
         excerpt: "Everything you need to know about getting around Phu Quoc",
-        heroImage: "/images/guides/transportation.jpg",
-        publishedAt: new Date(),
+        image: "/images/guides/transportation.jpg",
+
         isPublished: true,
       },
     ],

@@ -1,7 +1,8 @@
 import { prisma } from "./prisma"
 import { AppError } from "./errors"
 import { v4 as uuid } from "uuid"
-import { PAYMENT_STATUS, BOOKING_STATUS } from "@prisma/client"
+import { PaymentStatus, BookingStatus } from "@prisma/client"
+import type { Prisma } from "@prisma/client"
 
 interface PaymentInitInput {
   bookingId: string
@@ -22,10 +23,17 @@ interface PaymentInitResult {
 // Abstracted payment provider interface
 interface PaymentProvider {
   name: string
-  createPayment(amount: number, currency: string, metadata: Record<string, unknown>): Promise<{ url: string; transactionId: string }>
-  verifyCallback(body: unknown, headers: Record<string, string>): Promise<{
+  createPayment(
+    amount: number,
+    currency: string,
+    metadata: Record<string, unknown>
+  ): Promise<{ url: string; providerPaymentId: string }>
+  verifyCallback(
+    body: unknown,
+    headers: Record<string, string>
+  ): Promise<{
     verified: boolean
-    transactionId: string
+    providerPaymentId: string
     amount: number
     currency: string
     status: "PAID" | "FAILED" | "CANCELLED"
@@ -41,16 +49,16 @@ class MockPaymentProvider implements PaymentProvider {
     currency: string,
     metadata: Record<string, unknown>
   ) {
-    const transactionId = `txn_${uuid().slice(0, 8)}`
-    const paymentUrl = `/payment/mock?txn=${transactionId}&amount=${amount}&currency=${currency}&booking=${metadata.bookingCode}`
-    return { url: paymentUrl, transactionId }
+    const providerPaymentId = `txn_${uuid().slice(0, 8)}`
+    const paymentUrl = `/payment/mock?txn=${providerPaymentId}&amount=${amount}&currency=${currency}&booking=${metadata.bookingCode}`
+    return { url: paymentUrl, providerPaymentId }
   }
 
-  async verifyCallback(body: unknown, headers: Record<string, string>) {
+  async verifyCallback(body: unknown) {
     const data = body as Record<string, string>
     return {
       verified: true,
-      transactionId: data.transactionId || `txn_${uuid().slice(0, 8)}`,
+      providerPaymentId: data.transactionId || `txn_${uuid().slice(0, 8)}`,
       amount: Number(data.amount) || 0,
       currency: data.currency || "VND",
       status: (data.status as "PAID" | "FAILED" | "CANCELLED") || "PAID",
@@ -67,7 +75,9 @@ const providers: Record<string, PaymentProvider> = {
   // stripe: new StripeProvider(),
 }
 
-export async function initializePayment(input: PaymentInitInput): Promise<PaymentInitResult> {
+export async function initializePayment(
+  input: PaymentInitInput
+): Promise<PaymentInitResult> {
   const booking = await prisma.booking.findUnique({
     where: { id: input.bookingId },
     include: { payments: true },
@@ -77,7 +87,7 @@ export async function initializePayment(input: PaymentInitInput): Promise<Paymen
     throw new AppError(404, "BOOKING_NOT_FOUND", "Booking not found")
   }
 
-  if (booking.status !== BOOKING_STATUS.WAITING_PAYMENT) {
+  if (booking.status !== BookingStatus.WAITING_PAYMENT) {
     throw new AppError(
       400,
       "INVALID_BOOKING_STATUS",
@@ -87,7 +97,7 @@ export async function initializePayment(input: PaymentInitInput): Promise<Paymen
 
   // Check if payment already exists and is successful
   const existingPaidPayment = booking.payments.find(
-    (p) => p.status === PAYMENT_STATUS.PAID
+    (p) => p.status === PaymentStatus.PAID
   )
   if (existingPaidPayment) {
     throw new AppError(
@@ -99,7 +109,11 @@ export async function initializePayment(input: PaymentInitInput): Promise<Paymen
 
   const provider = providers[input.provider]
   if (!provider) {
-    throw new AppError(400, "INVALID_PROVIDER", `Payment provider not supported: ${input.provider}`)
+    throw new AppError(
+      400,
+      "INVALID_PROVIDER",
+      `Payment provider not supported: ${input.provider}`
+    )
   }
 
   // Create payment record
@@ -110,8 +124,7 @@ export async function initializePayment(input: PaymentInitInput): Promise<Paymen
       paymentMethod: input.paymentMethod || null,
       amount: booking.total,
       currency: booking.currency,
-      status: PAYMENT_STATUS.PENDING,
-      transactionId: null,
+      status: PaymentStatus.PENDING,
       metadata: {
         bookingCode: booking.bookingCode,
       },
@@ -128,13 +141,12 @@ export async function initializePayment(input: PaymentInitInput): Promise<Paymen
     }
   )
 
-  // Update payment with transaction ID
+  // Update payment with provider payment ID
   await prisma.payment.update({
     where: { id: payment.id },
     data: {
-      transactionId: result.transactionId,
-      status: PAYMENT_STATUS.PROCESSING,
-      providerResponse: result,
+      providerPaymentId: result.providerPaymentId,
+      status: PaymentStatus.PROCESSING,
     },
   })
 
@@ -142,10 +154,10 @@ export async function initializePayment(input: PaymentInitInput): Promise<Paymen
   await prisma.booking.update({
     where: { id: booking.id },
     data: {
-      status: BOOKING_STATUS.PENDING,
+      status: BookingStatus.PENDING,
       statusHistory: {
         create: {
-          status: BOOKING_STATUS.PENDING,
+          status: BookingStatus.PENDING,
           note: `Payment initiated via ${input.provider}`,
         },
       },
@@ -168,34 +180,45 @@ export async function processPaymentCallback(
 ) {
   const paymentProvider = providers[provider]
   if (!paymentProvider) {
-    throw new AppError(400, "INVALID_PROVIDER", `Unknown payment provider: ${provider}`)
+    throw new AppError(
+      400,
+      "INVALID_PROVIDER",
+      `Unknown payment provider: ${provider}`
+    )
   }
 
   // Verify the callback
-  const verification = await paymentProvider.verifyCallback(callbackBody, callbackHeaders)
+  const verification = await paymentProvider.verifyCallback(
+    callbackBody,
+    callbackHeaders
+  )
 
   if (!verification.verified) {
     console.error("Payment verification failed:", { provider, callbackBody })
     throw new AppError(400, "VERIFICATION_FAILED", "Payment verification failed")
   }
 
-  // Find the payment
+  // Find the payment by provider payment ID
   const payment = await prisma.payment.findFirst({
     where: {
       provider,
-      transactionId: verification.transactionId,
+      providerPaymentId: verification.providerPaymentId,
     },
     include: { booking: true },
   })
 
   if (!payment) {
-    console.error("Payment not found:", verification.transactionId)
+    console.error("Payment not found:", verification.providerPaymentId)
     throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found")
   }
 
   // Idempotency check - already processed
-  if (payment.status === PAYMENT_STATUS.PAID) {
-    return { success: true, bookingId: payment.bookingId, alreadyProcessed: true }
+  if (payment.status === PaymentStatus.PAID) {
+    return {
+      success: true,
+      bookingId: payment.bookingId,
+      alreadyProcessed: true,
+    }
   }
 
   // Verify amount
@@ -210,10 +233,10 @@ export async function processPaymentCallback(
   // Process based on status
   const newPaymentStatus =
     verification.status === "PAID"
-      ? PAYMENT_STATUS.PAID
+      ? PaymentStatus.PAID
       : verification.status === "FAILED"
-      ? PAYMENT_STATUS.FAILED
-      : PAYMENT_STATUS.CANCELLED
+        ? PaymentStatus.FAILED
+        : PaymentStatus.CANCELLED
 
   await prisma.$transaction(async (tx) => {
     // Update payment
@@ -222,17 +245,17 @@ export async function processPaymentCallback(
       data: {
         status: newPaymentStatus,
         paidAt: verification.status === "PAID" ? new Date() : null,
-        providerResponse: verification,
+        providerResponse: verification as unknown as Prisma.InputJsonValue,
       },
     })
 
     // Update booking based on payment result
     const newBookingStatus =
       verification.status === "PAID"
-        ? BOOKING_STATUS.PAID
+        ? BookingStatus.PAID
         : verification.status === "FAILED"
-        ? BOOKING_STATUS.PAYMENT_FAILED
-        : BOOKING_STATUS.CANCELLED
+          ? BookingStatus.PAYMENT_FAILED
+          : BookingStatus.CANCELLED
 
     await tx.booking.update({
       where: { id: payment.bookingId },
@@ -247,12 +270,6 @@ export async function processPaymentCallback(
       },
     })
   })
-
-  // If payment successful, trigger confirmation flow
-  if (verification.status === "PAID") {
-    // TODO: Trigger email confirmation (async)
-    // await triggerBookingConfirmation(payment.bookingId)
-  }
 
   return {
     success: verification.status === "PAID",

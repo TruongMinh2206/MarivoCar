@@ -39,7 +39,7 @@ export async function GET(
         },
         prices: {
           where: { isActive: true },
-          orderBy: { sortOrder: "asc" },
+          orderBy: { createdAt: "asc" },
           select: {
             id: true,
             name: true,

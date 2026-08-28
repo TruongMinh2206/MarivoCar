@@ -2,6 +2,11 @@ import Link from "next/link"
 import { Phone, Mail, MapPin } from "lucide-react"
 
 const FOOTER_LINKS = {
+  about: [
+    { label: "About Us", href: "/guide" },
+    { label: "Contact Us", href: "/contact" },
+    { label: "Partner With Us", href: "/contact" },
+  ],
   services: [
     { label: "Airport Transfer", href: "/airport-transfer" },
     { label: "Private Car", href: "/private-car" },
@@ -13,111 +18,99 @@ const FOOTER_LINKS = {
     { label: "Hotels", href: "/hotels" },
     { label: "Restaurants", href: "/restaurants" },
     { label: "Spa & Wellness", href: "/spa" },
-    { label: "Local Products", href: "/products" },
     { label: "Phu Quoc Guide", href: "/guide" },
   ],
-  support: [
-    { label: "Contact Us", href: "/contact" },
-    { label: "My Bookings", href: "/my-bookings" },
-    { label: "FAQ", href: "/guide" },
-    { label: "Terms of Service", href: "/guide" },
+  legal: [
     { label: "Privacy Policy", href: "/guide" },
+    { label: "Terms of Service", href: "/guide" },
+    { label: "FAQ", href: "/guide" },
   ],
 }
 
 export function Footer() {
   return (
-    <footer className="bg-marivo-950 text-white">
-      <div className="container-marivo py-12 lg:py-16">
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-5">
-          {/* Brand */}
-          <div className="lg:col-span-2">
-            <Link href="/" className="inline-block">
-              <span className="text-2xl font-bold font-display">MARIVO</span>
-            </Link>
-            <p className="mt-3 text-sm text-gray-400 max-w-sm leading-relaxed">
-              Everything you need for your Phu Quoc trip — in one place.
-              Discover, compare, and book the best travel services.
-            </p>
-            <div className="mt-6 space-y-2">
-              <div className="flex items-center gap-2 text-sm text-gray-400">
-                <Phone className="h-4 w-4" />
-                <span>+84-xxx-xxx-xxx</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-400">
-                <Mail className="h-4 w-4" />
-                <span>info@marivo.vn</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-400">
-                <MapPin className="h-4 w-4" />
-                <span>Phu Quoc, Kien Giang, Vietnam</span>
-              </div>
-            </div>
+    <footer className="bg-primary w-full">
+      <div className="py-12 px-5 md:px-16 max-w-[1280px] mx-auto">
+        {/* Brand */}
+        <div className="mb-8">
+          <span className="text-xl font-black text-secondary-container font-display">
+            MARIVO.vn
+          </span>
+        </div>
+
+        {/* Links Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
+          {/* About */}
+          <div className="flex flex-col gap-3">
+            {FOOTER_LINKS.about.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-label-sm font-label-sm text-on-primary-container hover:text-secondary-container transition-colors"
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
 
-          {/* Links */}
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-300">
-              Services
-            </h3>
-            <ul className="mt-4 space-y-2">
-              {FOOTER_LINKS.services.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-gray-400 hover:text-white transition-colors"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          {/* Services */}
+          <div className="flex flex-col gap-3">
+            <span className="text-label-sm font-label-sm font-bold text-white/60 uppercase tracking-wider mb-1">Services</span>
+            {FOOTER_LINKS.services.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-label-sm font-label-sm text-on-primary-container hover:text-secondary-container transition-colors"
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
 
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-300">
-              Explore
-            </h3>
-            <ul className="mt-4 space-y-2">
-              {FOOTER_LINKS.explore.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-gray-400 hover:text-white transition-colors"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          {/* Explore */}
+          <div className="flex flex-col gap-3">
+            <span className="text-label-sm font-label-sm font-bold text-white/60 uppercase tracking-wider mb-1">Explore</span>
+            {FOOTER_LINKS.explore.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-label-sm font-label-sm text-on-primary-container hover:text-secondary-container transition-colors"
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
 
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-300">
-              Support
-            </h3>
-            <ul className="mt-4 space-y-2">
-              {FOOTER_LINKS.support.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-gray-400 hover:text-white transition-colors"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          {/* Contact */}
+          <div className="flex flex-col gap-3">
+            <span className="text-label-sm font-label-sm font-bold text-white/60 uppercase tracking-wider mb-1">Contact</span>
+            <a href="tel:+842973999999" className="flex items-center gap-2 text-label-sm font-label-sm text-on-primary-container hover:text-secondary-container transition-colors">
+              <Phone className="h-3.5 w-3.5" />
+              +84-297-399-9999
+            </a>
+            <a href="mailto:info@marivo.vn" className="flex items-center gap-2 text-label-sm font-label-sm text-on-primary-container hover:text-secondary-container transition-colors">
+              <Mail className="h-3.5 w-3.5" />
+              info@marivo.vn
+            </a>
+            <span className="flex items-center gap-2 text-label-sm font-label-sm text-on-primary-container">
+              <MapPin className="h-3.5 w-3.5" />
+              Phu Quoc, Vietnam
+            </span>
           </div>
         </div>
 
-        {/* Bottom */}
-        <div className="mt-12 border-t border-gray-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-gray-500">
-            © {new Date().getFullYear()} MARIVO.vn. All rights reserved.
+        {/* Bottom Bar */}
+        <div className="border-t border-white/10 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <p className="text-label-sm font-label-sm text-on-primary-container text-center md:text-left">
+            &copy; {new Date().getFullYear()} MARIVO.vn - Phu Quoc Travel Expert. All Rights Reserved.
           </p>
-          <div className="flex items-center gap-4 text-xs text-gray-500">
-            <span>Made with ❤️ in Phu Quoc</span>
+          <div className="flex items-center gap-4">
+            {/* Payment indicators */}
+            <div className="flex items-center gap-2 text-label-sm font-label-sm text-white/40">
+              <span className="px-2 py-1 border border-white/10 rounded text-[10px] font-bold">VISA</span>
+              <span className="px-2 py-1 border border-white/10 rounded text-[10px] font-bold">MC</span>
+              <span className="px-2 py-1 border border-white/10 rounded text-[10px] font-bold">VNPAY</span>
+            </div>
           </div>
         </div>
       </div>

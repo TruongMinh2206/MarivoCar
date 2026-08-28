@@ -47,6 +47,20 @@ export function handleApiError(error: unknown) {
       { status: error.statusCode },
     )
   }
+  // Handle Zod validation errors
+  if (error && typeof error === "object" && "issues" in error) {
+    const zodError = error as { issues: Array<{ path: string[]; message: string }> }
+    const fieldErrors: Record<string, string[]> = {}
+    for (const issue of zodError.issues) {
+      const key = issue.path.join(".") || "_root"
+      if (!fieldErrors[key]) fieldErrors[key] = []
+      fieldErrors[key].push(issue.message)
+    }
+    return Response.json(
+      { error: { code: "VALIDATION_ERROR", message: "Validation failed", details: fieldErrors } },
+      { status: 400 },
+    )
+  }
   console.error("Unhandled error:", error)
   return Response.json(
     { error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred" } },

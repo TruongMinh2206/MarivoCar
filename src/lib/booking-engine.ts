@@ -1,9 +1,10 @@
 import { prisma } from "./prisma"
-import { AppError } from "./errors"
-import { validateQuote } from "./quote-engine"
+import { AppError, ForbiddenError } from "./errors"
+import { validateQuote, markQuoteUsed } from "./quote-engine"
 import { reserveCapacity } from "./availability-engine"
 import { generateBookingCode } from "./booking-code"
-import { BOOKING_STATUS } from "@prisma/client"
+import { audit } from "./audit"
+import { BookingStatus, UserRole } from "@prisma/client"
 
 interface CreateBookingInput {
   quoteId: string
@@ -19,8 +20,8 @@ interface CreateBookingInput {
 }
 
 export async function createBooking(input: CreateBookingInput) {
-  // Validate quote
-  const quote = validateQuote(input.quoteId)
+  // Validate quote (from DB, survives restarts)
+  const quote = await validateQuote(input.quoteId)
 
   // Re-validate availability before creating booking
   const { checkAvailability } = await import("./availability-engine")
@@ -55,12 +56,11 @@ export async function createBooking(input: CreateBookingInput) {
 
   // Create booking in a transaction
   const booking = await prisma.$transaction(async (tx) => {
-    // Create the booking
     const newBooking = await tx.booking.create({
       data: {
         bookingCode,
-        userId: input.userId || null,
-        status: BOOKING_STATUS.WAITING_PAYMENT,
+        userId: input.userId || "",
+        status: BookingStatus.WAITING_PAYMENT,
         currency: priceResult.currency,
         subtotal: priceResult.subtotal,
         discount: priceResult.discount,
@@ -69,16 +69,17 @@ export async function createBooking(input: CreateBookingInput) {
         customerName: input.customer.fullName,
         customerEmail: input.customer.email,
         customerPhone: input.customer.phone,
-        customerHotel: input.customer.hotel || null,
-        specialRequest: input.customer.specialRequest || null,
-        notes: input.notes || null,
+        customerHotel: input.customer.hotel,
+        specialRequest: input.customer.specialRequest,
+        notes: input.notes,
         items: {
           create: {
             serviceId: quote.serviceId,
+            serviceName: quote.serviceName,
             quantity: 1,
             unitPrice: priceResult.subtotal,
             total: priceResult.total,
-            serviceSnapshot: {
+            serviceSnapshot: JSON.parse(JSON.stringify({
               name: quote.serviceName,
               vehicleName: quote.vehicleName,
               tripType: quote.tripType,
@@ -89,24 +90,16 @@ export async function createBooking(input: CreateBookingInput) {
               pickup: quote.pickup,
               dropoff: quote.dropoff,
               flightNumber: quote.flightNumber,
-            },
-            metadata: {
+            })),
+            metadata: JSON.parse(JSON.stringify({
               quoteId: quote.quoteId,
               originalQuoteTotal: quote.total,
-            },
-          },
-        },
-        // Create status history
-        statusHistory: {
-          create: {
-            status: BOOKING_STATUS.WAITING_PAYMENT,
-            note: "Booking created, awaiting payment",
+            })),
           },
         },
       },
       include: {
         items: true,
-        statusHistory: true,
       },
     })
 
@@ -116,7 +109,42 @@ export async function createBooking(input: CreateBookingInput) {
     return newBooking
   })
 
+  // Mark the quote as used so it cannot create another booking
+  await markQuoteUsed(quote.quoteId)
+
   return booking
+}
+
+export async function markBookingPaid(bookingId: string) {
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+  })
+
+  if (!booking) {
+    throw new AppError(404, "BOOKING_NOT_FOUND", "Booking not found")
+  }
+
+  const payableStatuses: BookingStatus[] = [
+    BookingStatus.WAITING_PAYMENT,
+    BookingStatus.PENDING,
+  ]
+
+  if (!payableStatuses.includes(booking.status as BookingStatus)) {
+    throw new AppError(
+      400,
+      "INVALID_STATUS",
+      `Cannot mark booking as paid in status: ${booking.status}`
+    )
+  }
+
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: {
+      status: BookingStatus.PAID,
+    },
+  })
+
+  return { success: true }
 }
 
 export async function confirmBooking(bookingId: string) {
@@ -129,7 +157,7 @@ export async function confirmBooking(bookingId: string) {
     throw new AppError(404, "BOOKING_NOT_FOUND", "Booking not found")
   }
 
-  if (booking.status !== BOOKING_STATUS.PAID) {
+  if (booking.status !== BookingStatus.PAID) {
     throw new AppError(
       400,
       "INVALID_STATUS",
@@ -140,13 +168,7 @@ export async function confirmBooking(bookingId: string) {
   await prisma.booking.update({
     where: { id: bookingId },
     data: {
-      status: BOOKING_STATUS.CONFIRMED,
-      statusHistory: {
-        create: {
-          status: BOOKING_STATUS.CONFIRMED,
-          note: "Booking confirmed after payment verification",
-        },
-      },
+      status: BookingStatus.CONFIRMED,
     },
   })
 
@@ -163,14 +185,13 @@ export async function cancelBooking(bookingId: string, reason?: string) {
     throw new AppError(404, "BOOKING_NOT_FOUND", "Booking not found")
   }
 
-  // Check if cancellation is allowed based on status
-  const cancellableStatuses = [
-    BOOKING_STATUS.WAITING_PAYMENT,
-    BOOKING_STATUS.PENDING,
-    BOOKING_STATUS.CONFIRMED,
-  ]
+  const cancellableStatuses: BookingStatus[] = [
+    BookingStatus.WAITING_PAYMENT,
+    BookingStatus.PENDING,
+    BookingStatus.CONFIRMED,
+  ] as BookingStatus[]
 
-  if (!cancellableStatuses.includes(booking.status)) {
+  if (!cancellableStatuses.includes(booking.status as BookingStatus)) {
     throw new AppError(
       400,
       "CANCELLATION_NOT_ALLOWED",
@@ -178,32 +199,23 @@ export async function cancelBooking(bookingId: string, reason?: string) {
     )
   }
 
-  // Check cancellation policy
-  const item = booking.items[0]
-  if (item) {
-    const serviceSnapshot = item.serviceSnapshot as Record<string, unknown>
-    // TODO: Check against actual cancellation policy from service
-  }
-
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: bookingId },
       data: {
-        status: BOOKING_STATUS.CANCELLED,
-        statusHistory: {
-          create: {
-            status: BOOKING_STATUS.CANCELLED,
-            note: reason || "Booking cancelled by user",
-          },
-        },
+        status: BookingStatus.CANCELLED,
       },
     })
 
     // Release capacity
-    const { releaseCapacity } = await import("./availability-engine")
-    const dateStr = (item?.serviceSnapshot as Record<string, unknown>)?.date as string
-    if (dateStr) {
-      await releaseCapacity(item.serviceId, dateStr, 1)
+    const item = booking.items[0]
+    if (item) {
+      const { releaseCapacity } = await import("./availability-engine")
+      const serviceSnapshot = item.serviceSnapshot as Record<string, unknown>
+      const dateStr = serviceSnapshot?.date as string
+      if (dateStr) {
+        await releaseCapacity(item.serviceId, dateStr, 1)
+      }
     }
   })
 
@@ -216,9 +228,6 @@ export async function getBookingByCode(bookingCode: string) {
     include: {
       items: true,
       payments: true,
-      statusHistory: {
-        orderBy: { createdAt: "asc" },
-      },
     },
   })
 
@@ -270,4 +279,197 @@ export async function getUserBookings(
       totalPages: Math.ceil(total / limit),
     },
   }
+}
+
+// ---------------------------------------------------------------------------
+// Admin booking operations (Phase 2 + 3): controlled state transitions.
+// ---------------------------------------------------------------------------
+
+export interface TransitionActor {
+  actorId?: string | null
+  actorRole: UserRole
+}
+
+/** Which roles may drive any given target status. */
+const TRANSITION_ALLOWED_ROLES: Record<BookingStatus, UserRole[]> = {
+  [BookingStatus.CONFIRMED]: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF],
+  [BookingStatus.IN_PROGRESS]: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF],
+  [BookingStatus.COMPLETED]: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF],
+  [BookingStatus.CANCELLED]: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CUSTOMER],
+  [BookingStatus.REFUND_REQUESTED]: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.CUSTOMER],
+  [BookingStatus.REFUNDED]: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER],
+  // Transitions to the following are handled by payment engine, not admin UI:
+  [BookingStatus.DRAFT]: [],
+  [BookingStatus.PENDING]: [],
+  [BookingStatus.WAITING_PAYMENT]: [],
+  [BookingStatus.PAID]: [],
+  [BookingStatus.PAYMENT_FAILED]: [],
+}
+
+/** Allowed (from -> to) transitions for the admin/customer lifecycle. */
+const TRANSITION_MATRIX: Record<BookingStatus, BookingStatus[]> = {
+  [BookingStatus.DRAFT]: [BookingStatus.PENDING, BookingStatus.WAITING_PAYMENT, BookingStatus.CANCELLED],
+  [BookingStatus.PENDING]: [BookingStatus.WAITING_PAYMENT, BookingStatus.PAID, BookingStatus.PAYMENT_FAILED, BookingStatus.CANCELLED],
+  [BookingStatus.WAITING_PAYMENT]: [BookingStatus.PAID, BookingStatus.PENDING, BookingStatus.CANCELLED, BookingStatus.PAYMENT_FAILED],
+  [BookingStatus.PAID]: [BookingStatus.CONFIRMED, BookingStatus.REFUND_REQUESTED, BookingStatus.CANCELLED],
+  [BookingStatus.CONFIRMED]: [BookingStatus.IN_PROGRESS, BookingStatus.CANCELLED],
+  [BookingStatus.IN_PROGRESS]: [BookingStatus.COMPLETED],
+  [BookingStatus.COMPLETED]: [],
+  [BookingStatus.CANCELLED]: [],
+  [BookingStatus.PAYMENT_FAILED]: [BookingStatus.WAITING_PAYMENT, BookingStatus.CANCELLED],
+  [BookingStatus.REFUND_REQUESTED]: [BookingStatus.REFUNDED, BookingStatus.CANCELLED],
+  [BookingStatus.REFUNDED]: [],
+}
+
+/**
+ * The single, authorized entry point for changing a booking's status.
+ * Validates the transition matrix + actor role, records a status-history row,
+ * and writes an audit log. Side effects (capacity release, notifications) are
+ * dispatched from here.
+ */
+export async function transitionBookingStatus(
+  bookingId: string,
+  to: BookingStatus,
+  actor: TransitionActor
+) {
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { items: true },
+  })
+  if (!booking) {
+    throw new AppError(404, "BOOKING_NOT_FOUND", "Booking not found")
+  }
+
+  const from = booking.status as BookingStatus
+
+  // Permission check first (spec: authorization enforced server-side).
+  const allowedRoles = TRANSITION_ALLOWED_ROLES[to] ?? []
+  if (!allowedRoles.includes(actor.actorRole)) {
+    throw new ForbiddenError("Insufficient permissions for this status change")
+  }
+
+  // Transition legality.
+  const next = TRANSITION_MATRIX[from] ?? []
+  if (!next.includes(to)) {
+    throw new AppError(
+      400,
+      "INVALID_TRANSITION",
+      `Cannot change booking from ${from} to ${to}`
+    )
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: { status: to },
+    })
+
+    await tx.bookingStatusHistory.create({
+      data: {
+        bookingId,
+        status: to,
+        note: actor.actorRole === UserRole.CUSTOMER ? "updated by customer" : "updated by staff",
+      },
+    })
+
+    // Side effects based on the NEW status.
+    if (to === BookingStatus.CANCELLED) {
+      const item = booking.items[0]
+      if (item) {
+        const { releaseCapacity } = await import("./availability-engine")
+        const snapshot = item.serviceSnapshot as Record<string, unknown> | null
+        const dateStr = snapshot?.date as string | undefined
+        if (item.serviceId && dateStr) {
+          await releaseCapacity(item.serviceId, dateStr, 1)
+        }
+      }
+    }
+  })
+
+  await audit({
+    actorId: actor.actorId ?? null,
+    action: "CHANGE_STATUS",
+    entity: "Booking",
+    entityId: bookingId,
+    metadata: { from, to, actorRole: actor.actorRole },
+  })
+
+  return { success: true, from, to }
+}
+
+/** CONFIRMED -> IN_PROGRESS (admin). */
+export function startTrip(bookingId: string, actor: TransitionActor) {
+  return transitionBookingStatus(bookingId, BookingStatus.IN_PROGRESS, actor)
+}
+
+/** IN_PROGRESS -> COMPLETED (admin). */
+export function completeBooking(bookingId: string, actor: TransitionActor) {
+  return transitionBookingStatus(bookingId, BookingStatus.COMPLETED, actor)
+}
+
+// ---------------------------------------------------------------------------
+// Admin queries.
+// ---------------------------------------------------------------------------
+
+export interface AdminBookingsQuery {
+  page?: number
+  limit?: number
+  status?: string
+  search?: string
+  dateFrom?: string
+  dateTo?: string
+}
+
+export async function getAdminBookings(query: AdminBookingsQuery = {}) {
+  const page = Math.max(1, query.page || 1)
+  const limit = Math.min(100, Math.max(1, query.limit || 20))
+  const skip = (page - 1) * limit
+
+  const where: Record<string, unknown> = {}
+  if (query.status) {
+    where.status = query.status
+  }
+  if (query.search) {
+    where.OR = [
+      { bookingCode: { contains: query.search } },
+      { customerName: { contains: query.search } },
+      { customerEmail: { contains: query.search } },
+    ]
+  }
+  if (query.dateFrom || query.dateTo) {
+    where.createdAt = {
+      ...(query.dateFrom ? { gte: new Date(query.dateFrom) } : {}),
+      ...(query.dateTo ? { lte: new Date(query.dateTo) } : {}),
+    }
+  }
+
+  const [data, total] = await Promise.all([
+    prisma.booking.findMany({
+      where,
+      include: { items: true, payments: true },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.booking.count({ where }),
+  ])
+
+  return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } }
+}
+
+export async function getBookingDetailAdmin(idOrCode: string) {
+  const booking = await prisma.booking.findUnique({
+    where: idOrCode.startsWith("MRV") ? { bookingCode: idOrCode } : { id: idOrCode },
+    include: {
+      items: true,
+      payments: { orderBy: { createdAt: "desc" } },
+      statusHistory: { orderBy: { createdAt: "asc" } },
+      review: true,
+      voucher: true,
+    },
+  })
+  if (!booking) {
+    throw new AppError(404, "BOOKING_NOT_FOUND", "Booking not found")
+  }
+  return booking
 }

@@ -16,8 +16,13 @@ export function getPaginationParams(request: NextRequest) {
   return { page, limit, skip }
 }
 
-export function successResponse(data: unknown, meta?: Record<string, unknown>) {
-  return Response.json({ data, meta })
+export function successResponse(data: unknown, options?: { meta?: Record<string, unknown>; statusCode?: number }) {
+  const status = options?.statusCode ?? 200
+  const meta = options?.meta
+  return Response.json(
+    meta ? { data, meta } : { data },
+    { status },
+  )
 }
 
 export function errorResponse(error: unknown) {

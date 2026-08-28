@@ -3,8 +3,7 @@ import { AppError } from "./errors"
 import { calculatePrice } from "./price-engine"
 import { checkAvailability } from "./availability-engine"
 import { QUOTE_EXPIRY_MINUTES } from "./constants"
-import { v4 as uuid } from "uuid"
-import type { Quote } from "@/types"
+import type { Quote, LocationOption } from "@/types"
 
 interface QuoteInput {
   serviceId: string
@@ -19,18 +18,10 @@ interface QuoteInput {
   luggage: number
 }
 
-// In-memory quote store (replace with Redis in production)
-const quoteStore = new Map<string, Quote & { createdAt: number }>()
-
-// Cleanup expired quotes every 5 minutes
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, quote] of quoteStore.entries()) {
-    if (new Date(quote.expiresAt).getTime() < now) {
-      quoteStore.delete(key)
-    }
-  }
-}, 5 * 60 * 1000)
+// Quotes are persisted to the database so they survive dev-server hot reloads and
+// restarts. (Previously they lived in an in-memory Map, which caused QUOTE_EXPIRED
+// errors whenever the server recompiled between quote creation and booking submission.)
+const QUOTE_CODE_LEN = 8
 
 export async function createQuote(input: QuoteInput): Promise<Quote> {
   // Validate service exists
@@ -94,11 +85,35 @@ export async function createQuote(input: QuoteInput): Promise<Quote> {
     luggage: input.luggage,
   })
 
-  const quoteId = uuid()
+  const quoteCode = generateQuoteCode()
   const expiresAt = new Date(Date.now() + QUOTE_EXPIRY_MINUTES * 60 * 1000)
 
+  // Persist the quote so it survives server restarts / hot reloads
+  const stored = await prisma.quote.create({
+    data: {
+      quoteCode,
+      serviceId: input.serviceId,
+      vehicleId: input.vehicleId,
+      tripType: input.tripType,
+      date: input.date,
+      time: input.time,
+      flightNumber: input.flightNumber,
+      passengers: input.passengers,
+      luggage: input.luggage,
+      pickupLocationId: input.pickupId,
+      dropoffLocationId: input.dropoffId,
+      priceBreakdown: priceResult.breakdown as unknown as object,
+      subtotal: priceResult.subtotal,
+      discount: priceResult.discount,
+      serviceFee: priceResult.serviceFee,
+      total: priceResult.total,
+      currency: priceResult.currency,
+      expiresAt,
+    },
+  })
+
   const quote: Quote = {
-    quoteId,
+    quoteId: stored.id,
     serviceId: input.serviceId,
     serviceName: service.name,
     vehicleId: input.vehicleId,
@@ -113,7 +128,7 @@ export async function createQuote(input: QuoteInput): Promise<Quote> {
           id: pickup.id,
           name: pickup.name,
           slug: pickup.slug,
-          type: pickup.type,
+          type: pickup.type as LocationOption["type"],
           area: pickup.area,
         }
       : undefined,
@@ -122,7 +137,7 @@ export async function createQuote(input: QuoteInput): Promise<Quote> {
           id: dropoff.id,
           name: dropoff.name,
           slug: dropoff.slug,
-          type: dropoff.type,
+          type: dropoff.type as LocationOption["type"],
           area: dropoff.area,
         }
       : undefined,
@@ -136,27 +151,80 @@ export async function createQuote(input: QuoteInput): Promise<Quote> {
     expiresAt: expiresAt.toISOString(),
   }
 
-  // Store quote
-  quoteStore.set(quoteId, { ...quote, createdAt: Date.now() })
-
   return quote
 }
 
-export function getQuote(quoteId: string): Quote | null {
-  const stored = quoteStore.get(quoteId)
+export async function getQuote(quoteId: string): Promise<Quote | null> {
+  const stored = await prisma.quote.findUnique({
+    where: { id: quoteId },
+    include: {
+      service: true,
+      vehicle: true,
+    },
+  })
+
   if (!stored) return null
 
   // Check expiry
   if (new Date(stored.expiresAt).getTime() < Date.now()) {
-    quoteStore.delete(quoteId)
     return null
   }
 
-  return stored
+  // Reconstruct pickup/dropoff from location ids (Quote stores location ids as
+  // plain scalars, so we resolve them manually when present).
+  let pickup: LocationOption | undefined
+  let dropoff: LocationOption | undefined
+  if (stored.pickupLocationId) {
+    const loc = await prisma.location.findUnique({ where: { id: stored.pickupLocationId } })
+    if (loc) {
+      pickup = {
+        id: loc.id,
+        name: loc.name,
+        slug: loc.slug,
+        type: loc.type as LocationOption["type"],
+        area: loc.area,
+      }
+    }
+  }
+  if (stored.dropoffLocationId) {
+    const loc = await prisma.location.findUnique({ where: { id: stored.dropoffLocationId } })
+    if (loc) {
+      dropoff = {
+        id: loc.id,
+        name: loc.name,
+        slug: loc.slug,
+        type: loc.type as LocationOption["type"],
+        area: loc.area,
+      }
+    }
+  }
+
+  return {
+    quoteId: stored.id,
+    serviceId: stored.serviceId,
+    serviceName: stored.service?.name || "",
+    vehicleId: stored.vehicleId || undefined,
+    vehicleName: stored.vehicle?.name,
+    tripType: stored.tripType as Quote["tripType"],
+    date: stored.date,
+    time: stored.time,
+    passengers: stored.passengers,
+    luggage: stored.luggage,
+    pickup,
+    dropoff,
+    flightNumber: stored.flightNumber || undefined,
+    priceBreakdown: (stored.priceBreakdown as unknown as Quote["priceBreakdown"]) || [],
+    subtotal: Number(stored.subtotal),
+    discount: Number(stored.discount),
+    serviceFee: Number(stored.serviceFee),
+    total: Number(stored.total),
+    currency: stored.currency,
+    expiresAt: stored.expiresAt.toISOString(),
+  }
 }
 
-export function validateQuote(quoteId: string): Quote {
-  const quote = getQuote(quoteId)
+export async function validateQuote(quoteId: string): Promise<Quote> {
+  const quote = await getQuote(quoteId)
   if (!quote) {
     throw new AppError(
       400,
@@ -165,4 +233,21 @@ export function validateQuote(quoteId: string): Quote {
     )
   }
   return quote
+}
+
+// Mark a quote as used once a booking is created from it (prevents reuse).
+export async function markQuoteUsed(quoteId: string): Promise<void> {
+  await prisma.quote.update({
+    where: { id: quoteId },
+    data: { isUsed: true },
+  })
+}
+
+function generateQuoteCode(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+  let code = ""
+  for (let i = 0; i < QUOTE_CODE_LEN; i++) {
+    code += alphabet[Math.floor(Math.random() * alphabet.length)]
+  }
+  return `QT-${code}`
 }

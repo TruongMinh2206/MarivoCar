@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-// Protected routes that require authentication
-const PROTECTED_ROUTES = ["/my-bookings", "/booking/"]
+// Protected routes that require authentication.
+// Note: /booking and /my-bookings support guest checkout (the user enters their
+// email directly on the page and bookings are queried by that email), so they
+// must NOT require a login cookie. Only /admin stays protected.
+const PROTECTED_ROUTES: string[] = []
 
 // Admin routes that require admin role
 const ADMIN_ROUTES = ["/admin"]
@@ -25,8 +28,8 @@ export function middleware(request: NextRequest) {
 
   const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route))
 
-  // TODO: Replace with actual NextAuth session check
-  const token = request.cookies.get("next-auth.session-token")?.value
+  // Check for session cookie set by AuthContext on login
+  const token = request.cookies.get("marivo_session")?.value
 
   if (isProtectedRoute && !token) {
     const url = new URL("/login", request.url)

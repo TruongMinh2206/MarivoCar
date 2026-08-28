@@ -106,10 +106,12 @@ export async function GET(request: NextRequest) {
     ])
 
     return successResponse(services, {
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     })
   } catch (error) {
     return errorResponse(error)

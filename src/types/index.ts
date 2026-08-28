@@ -174,6 +174,16 @@ export interface ServiceDetail {
     services: Record<string, unknown> | null
     schedule: Record<string, unknown> | null
   } | null
+  reviews?: Array<{
+    id: string
+    rating: number
+    comment: string | null
+    createdAt: string
+    user: {
+      name: string | null
+      image: string | null
+    }
+  }>
 }
 
 // ============ Location Types ============
