@@ -1,5 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
+// Fake Prisma enums so tests run without a generated client
+vi.mock("@prisma/client", () => ({
+  UserRole: {
+    CUSTOMER: "CUSTOMER",
+    STAFF: "STAFF",
+    MANAGER: "MANAGER",
+    ADMIN: "ADMIN",
+    SUPER_ADMIN: "SUPER_ADMIN",
+  },
+}))
+
 // Mock prisma BEFORE importing the module under test
 vi.mock("../prisma", () => ({
   prisma: {

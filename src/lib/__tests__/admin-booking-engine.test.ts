@@ -1,5 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { BookingStatus, UserRole } from "@prisma/client"
+
+// Fake Prisma enums so tests run without a generated client
+vi.mock("@prisma/client", () => ({
+  UserRole: {
+    CUSTOMER: "CUSTOMER",
+    STAFF: "STAFF",
+    MANAGER: "MANAGER",
+    ADMIN: "ADMIN",
+    SUPER_ADMIN: "SUPER_ADMIN",
+  },
+  BookingStatus: {
+    DRAFT: "DRAFT",
+    PENDING: "PENDING",
+    WAITING_PAYMENT: "WAITING_PAYMENT",
+    PAYMENT_FAILED: "PAYMENT_FAILED",
+    PAID: "PAID",
+    CONFIRMED: "CONFIRMED",
+    IN_PROGRESS: "IN_PROGRESS",
+    COMPLETED: "COMPLETED",
+    CANCELLED: "CANCELLED",
+    REFUND_REQUESTED: "REFUND_REQUESTED",
+    REFUNDED: "REFUNDED",
+  },
+}))
 
 // Mock prisma
 vi.mock("../prisma", () => ({
@@ -24,6 +47,7 @@ vi.mock("../prisma", () => ({
   },
 }))
 
+import { BookingStatus, UserRole } from "@prisma/client"
 import { prisma } from "../prisma"
 import {
   transitionBookingStatus,
