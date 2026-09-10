@@ -1127,10 +1127,10 @@ export default function BookingPage({
   const rawId = paramsResolved?.id || ""
 
   // Resolve a valid service id; if the URL id isn't a Prisma cuid, default to the
-  // standard airport-transfer sedan so quote/booking creation doesn't fail.
+  // seeded airport-transfer sedan so quote/booking creation doesn't fail.
   const SERVICE_ID = /^[a-z0-9]{20,}$/.test(rawId)
     ? rawId
-    : "cmtblxlas000tu9rwbu8plc91"
+    : "cmtuhvfuu000tfyq8stoq3hb6"
 
   const [currentStep, setCurrentStep] = useState(0)
 

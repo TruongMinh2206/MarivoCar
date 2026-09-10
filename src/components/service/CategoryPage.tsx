@@ -10,10 +10,19 @@ import { ErrorState } from "@/components/ui/ErrorState"
 import { Button } from "@/components/ui/Button"
 
 interface CategoryPageProps {
+  /** Category slug used to query /api/services */
   category: string
+  /** Human-readable heading (defaults to the slug) */
+  title?: string
+  /** Intro paragraph under the heading */
+  description?: string
 }
 
-function CategoryPageContent({ category }: CategoryPageProps) {
+function CategoryPageContent({
+  category,
+  title,
+  description,
+}: CategoryPageProps) {
   const {
     services,
     total,
@@ -25,14 +34,17 @@ function CategoryPageContent({ category }: CategoryPageProps) {
     resetFilters,
   } = useServices({ category, limit: 12 })
 
+  const heading = title ?? category.replace(/-/g, " ")
+
   return (
     <div className="container-marivo py-8">
       {/* Page Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 font-display capitalize">
-          {category.replace(/-/g, " ")}
+          {heading}
         </h1>
-        <p className="mt-2 text-gray-500">
+        {description && <p className="mt-2 text-gray-500">{description}</p>}
+        <p className="mt-2 text-sm text-gray-400">
           {total} {total === 1 ? "service" : "services"} available
         </p>
       </div>
@@ -100,19 +112,21 @@ function CategoryPageContent({ category }: CategoryPageProps) {
   )
 }
 
-export function CategoryPage({ category }: CategoryPageProps) {
+export function CategoryPage(props: CategoryPageProps) {
   return (
-    <Suspense fallback={
-      <div className="container-marivo py-8">
-        <div className="skeleton h-8 w-64 mb-4" />
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <ServiceCardSkeleton key={i} />
-          ))}
+    <Suspense
+      fallback={
+        <div className="container-marivo py-8">
+          <div className="skeleton h-8 w-64 mb-4" />
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <ServiceCardSkeleton key={i} />
+            ))}
+          </div>
         </div>
-      </div>
-    }>
-      <CategoryPageContent category={category} />
+      }
+    >
+      <CategoryPageContent {...props} />
     </Suspense>
   )
 }

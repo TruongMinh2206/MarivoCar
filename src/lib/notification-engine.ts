@@ -1,22 +1,7 @@
 import { prisma } from "./prisma"
+import { sendEmail } from "./email"
 
-interface EmailInput {
-  to: string
-  subject: string
-  html: string
-  text?: string
-}
-
-// Resend integration (placeholder - add RESEND_API_KEY to .env)
-async function sendEmail(input: EmailInput): Promise<boolean> {
-  // In production, use Resend:
-  // import { Resend } from 'resend'
-  // const resend = new Resend(process.env.RESEND_API_KEY)
-  // await resend.emails.send({ from: 'MARIVO <noreply@marivo.vn>', to: input.to, subject: input.subject, html: input.html })
-
-  console.log(`[EMAIL] To: ${input.to} | Subject: ${input.subject}`)
-  return true
-}
+export { sendEmail }
 
 // Generate booking confirmation HTML email
 export function bookingConfirmationEmail(booking: {
@@ -111,17 +96,12 @@ export async function sendNotification(params: {
     },
   })
 
-  // Send email
-  try {
-    await sendEmail({
-      to: params.email,
-      subject: params.emailSubject,
-      html: params.emailHtml,
-    })
-  } catch (error) {
-    console.error("Failed to send email:", error)
-    // Don't throw - email failure shouldn't block the booking flow
-  }
+  // Send email (never throws — email failure must not block the flow)
+  await sendEmail({
+    to: params.email,
+    subject: params.emailSubject,
+    html: params.emailHtml,
+  })
 }
 
 // Send booking confirmation notification
