@@ -10,3 +10,7 @@ coverage/
 playwright-report/
 test-results/
 prisma/migrations/
+
+# UI audit artifacts (regenerable — 23 full-page screenshots, ~7MB)
+audit/screenshots/
+audit-run.log

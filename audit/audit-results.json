@@ -1,0 +1,244 @@
+{
+  "generatedAt": "2026-09-10T18:48:52.224Z",
+  "counts": {
+    "pass": 38,
+    "warn": 1,
+    "fail": 0
+  },
+  "findings": [
+    {
+      "page": "home",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/00-home.png"
+    },
+    {
+      "page": "airport-transfer",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/01-airport-transfer.png"
+    },
+    {
+      "page": "airport-transfer-detail",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/02-airport-transfer-detail.png"
+    },
+    {
+      "page": "private-car",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/03-private-car.png"
+    },
+    {
+      "page": "rent-a-car",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/04-rent-a-car.png"
+    },
+    {
+      "page": "tours",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/05-tours.png"
+    },
+    {
+      "page": "tours-detail",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/06-tours-detail.png"
+    },
+    {
+      "page": "tickets",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/07-tickets.png"
+    },
+    {
+      "page": "hotels",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/08-hotels.png"
+    },
+    {
+      "page": "hotels-detail-legacy",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/09-hotels-detail-legacy.png"
+    },
+    {
+      "page": "restaurants",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/10-restaurants.png"
+    },
+    {
+      "page": "spa",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/11-spa.png"
+    },
+    {
+      "page": "products",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/12-products.png"
+    },
+    {
+      "page": "taxi",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/13-taxi.png"
+    },
+    {
+      "page": "guide",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/14-guide.png"
+    },
+    {
+      "page": "guide-article",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/15-guide-article.png"
+    },
+    {
+      "page": "contact",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/16-contact.png"
+    },
+    {
+      "page": "my-bookings",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/17-my-bookings.png"
+    },
+    {
+      "page": "login",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/18-login.png"
+    },
+    {
+      "page": "register",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/19-register.png"
+    },
+    {
+      "page": "forgot-password",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/20-forgot-password.png"
+    },
+    {
+      "page": "booking-wizard",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/21-booking-wizard.png"
+    },
+    {
+      "page": "booking-legacy-id",
+      "action": "page load",
+      "status": "PASS",
+      "detail": "HTTP 200, screenshot → audit/screenshots/22-booking-legacy-id.png"
+    },
+    {
+      "page": "home",
+      "action": "click hero Search",
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/airport-transfer"
+    },
+    {
+      "page": "home",
+      "action": "click Taxi category tile",
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/taxi"
+    },
+    {
+      "page": "home",
+      "action": "click Spa category tile",
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/spa"
+    },
+    {
+      "page": "home",
+      "action": "click Popular Services card",
+      "status": "WARN",
+      "detail": "→ http://localhost:3000/airport-transfer — every popular card hardcodes /airport-transfer regardless of card type"
+    },
+    {
+      "page": "home",
+      "action": "click Book Airport Transfer CTA",
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/airport-transfer"
+    },
+    {
+      "page": "home",
+      "action": "click Explore Tours CTA",
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/tours"
+    },
+    {
+      "page": "nav",
+      "action": "click Airport Transfer",
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/airport-transfer"
+    },
+    {
+      "page": "nav",
+      "action": "click Guide",
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/guide"
+    },
+    {
+      "page": "nav",
+      "action": "click Sign In",
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/login"
+    },
+    {
+      "page": "footer",
+      "action": "click Rent a Car",
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/rent-a-car"
+    },
+    {
+      "page": "footer",
+      "action": "click Contact Us",
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/contact"
+    },
+    {
+      "page": "airport-transfer",
+      "action": "click service card",
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/airport-transfer/airport-transfer-sedan"
+    },
+    {
+      "page": "service-detail",
+      "action": "click Book Now",
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/booking/airport-transfer-sedan?serviceId=cmtuhvfuu000tfyq8stoq3hb6"
+    },
+    {
+      "page": "booking-wizard",
+      "action": "step 1 continue",
+      "status": "PASS",
+      "detail": "step 1 → step 2 works"
+    },
+    {
+      "page": "my-bookings",
+      "action": "render lookup form",
+      "status": "PASS",
+      "detail": "email lookup input present"
+    },
+    {
+      "page": "login",
+      "action": "submit wrong password",
+      "status": "PASS",
+      "detail": "error surfaced, no crash"
+    }
+  ]
+}
