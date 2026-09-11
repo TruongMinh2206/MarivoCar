@@ -35,7 +35,8 @@ export const paymentInitSchema = z.object({
 
 export const reviewSchema = z.object({
   serviceId: z.string().min(1),
-  bookingId: z.string().min(1),
+  bookingCode: z.string().min(1, "Booking code is required"),
+  email: z.string().email("Invalid email address"),
   rating: z.number().int().min(1).max(5),
   comment: z.string().max(1000).optional(),
 })
