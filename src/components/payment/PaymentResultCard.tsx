@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Phone,
 } from "lucide-react"
+import { formatPrice } from "@/lib/format"
 import { PrintButton } from "./PrintButton"
 
 export interface PaymentResultBooking {
@@ -28,10 +29,6 @@ export interface PaymentResultBooking {
 interface Props {
   result: "success" | "failed"
   booking: PaymentResultBooking | null
-}
-
-function formatPrice(amount: number, currency: string): string {
-  return `${amount.toLocaleString()} ${currency}`
 }
 
 export function PaymentResultCard({ result, booking }: Props) {
