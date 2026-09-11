@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, use } from "react"
+import { useState, useEffect, useCallback, useRef, use, Suspense } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import QRCode from "qrcode"
 import {
   Check,
@@ -22,9 +23,22 @@ import {
   Copy,
   CheckCircle,
   Building2,
+  SearchX,
 } from "lucide-react"
 import { Card } from "@/components/ui/Card"
 import { cn } from "@/utils/cn"
+import { resolveServiceRequest } from "@/lib/service-resolver"
+
+// ─── Resolved service (from /api/services/[slug]) ────────────────────────────
+
+interface ResolvedService {
+  id: string
+  name: string
+  slug: string
+  basePrice: number
+  currency: string
+  category?: { slug?: string; name?: string }
+}
 
 // ─── Step definitions ────────────────────────────────────────────────────────
 
@@ -71,9 +85,11 @@ const cardClasses = "bg-surface-container-lowest rounded-xl border border-outlin
 function StepTripInformation({
   data,
   onNext,
+  serviceName,
 }: {
   data: TripData
   onNext: (data: TripData) => void
+  serviceName: string
 }) {
   const [form, setForm] = useState<TripData>(data)
   const [errors, setErrors] = useState<Partial<Record<keyof TripData, string>>>({})
@@ -109,7 +125,7 @@ function StepTripInformation({
           Trip Information
         </h2>
         <p className="text-body-md font-body-md text-on-surface-variant mt-1">
-          Tell us about your trip
+          You are booking: <span className="font-medium text-on-surface">{serviceName}</span>
         </p>
       </div>
 
@@ -487,6 +503,8 @@ function StepConfirmation({
   onBack,
   submitting,
   submitError,
+  serviceName,
+  estimateTotal,
 }: {
   tripData: TripData
   customerData: CustomerData
@@ -496,13 +514,12 @@ function StepConfirmation({
   onBack: () => void
   submitting: boolean
   submitError: string
+  serviceName: string
+  estimateTotal: number
 }) {
-  // Mock pricing
-  const basePrice = 350000
-  const subtotal = basePrice * tripData.passengers
-  const discount = tripData.tripType === "round-trip" ? Math.round(subtotal * 0.1) : 0
-  const serviceFee = 25000
-  const total = subtotal - discount + serviceFee
+  // Pricing mirrors the server price-engine (base + 10% off return leg +
+  // 5% service fee). The persisted booking always uses the server total.
+  const total = estimateTotal
 
   const formatPrice = (amount: number) =>
     amount.toLocaleString("vi-VN") + " ₫"
@@ -560,11 +577,7 @@ function StepConfirmation({
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-on-surface-variant block mb-0.5">Service</span>
-            <p className="font-medium text-on-surface">Airport Transfer</p>
-          </div>
-          <div>
-            <span className="text-on-surface-variant block mb-0.5">Vehicle</span>
-            <p className="font-medium text-on-surface">Standard Sedan</p>
+            <p className="font-medium text-on-surface">{serviceName}</p>
           </div>
           <div>
             <span className="text-on-surface-variant block mb-0.5">Trip Type</span>
@@ -642,19 +655,16 @@ function StepConfirmation({
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-on-surface-variant">
-              Base Price &times; {tripData.passengers} passenger{tripData.passengers !== 1 ? "s" : ""}
+              Trip subtotal
+              {tripData.tripType === "round-trip" && (
+                <span className="text-success"> (return leg 10% off)</span>
+              )}
             </span>
-            <span className="text-on-surface">{formatPrice(subtotal)}</span>
+            <span className="text-on-surface">{formatPrice(Math.round(total / 1.05))}</span>
           </div>
-          {discount > 0 && (
-            <div className="flex justify-between text-success">
-              <span>Round Trip Discount (10%)</span>
-              <span>-{formatPrice(discount)}</span>
-            </div>
-          )}
           <div className="flex justify-between">
-            <span className="text-on-surface-variant">Service Fee</span>
-            <span className="text-on-surface">{formatPrice(serviceFee)}</span>
+            <span className="text-on-surface-variant">Service Fee (5%)</span>
+            <span className="text-on-surface">{formatPrice(total - Math.round(total / 1.05))}</span>
           </div>
         </div>
         <div className="border-t border-outline-variant pt-3">
@@ -1120,17 +1130,97 @@ export default function BookingPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  // Service id comes from the URL: /booking/[id] (a Prisma service id like
-  // "cmtblxlas000tu9rwbu8plc91"). Legacy links used plain numbers (e.g. /booking/20)
-  // which don't exist in the DB — fall back to the first sedan service in that case.
+  // useSearchParams() requires a Suspense boundary in the App Router — see
+  // the <Suspense> wrapper at the bottom of this file.
+  return (
+    <Suspense fallback={null}>
+      <BookingWizard params={params} />
+    </Suspense>
+  )
+}
+
+async function fetchService(
+  resolution: ReturnType<typeof resolveServiceRequest>
+): Promise<ResolvedService | null> {
+  if (resolution.kind === "invalid") return null
+
+  // /api/services/[slug] accepts both the slug and a legacy cuid.
+  const res = await fetch(`/api/services/${resolution.value}`)
+  if (res.status === 404) return null
+  if (!res.ok) {
+    throw new Error(
+      `Could not load the service (HTTP ${res.status}). Please try again.`
+    )
+  }
+  const payload = (await res.json()) as { data?: Record<string, unknown> }
+  const data = payload.data
+  if (!data || typeof data.id !== "string") return null
+
+  return {
+    id: data.id,
+    name: typeof data.name === "string" ? data.name : "Service",
+    slug: typeof data.slug === "string" ? data.slug : "",
+    basePrice: Number(data.basePrice) || 0,
+    currency: typeof data.currency === "string" ? data.currency : "VND",
+    category:
+      data.category && typeof data.category === "object"
+        ? (data.category as ResolvedService["category"])
+        : undefined,
+  }
+}
+
+function BookingWizard({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
   const paramsResolved = use(params)
   const rawId = paramsResolved?.id || ""
+  const searchParams = useSearchParams()
 
-  // Resolve a valid service id; if the URL id isn't a Prisma cuid, default to the
-  // seeded airport-transfer sedan so quote/booking creation doesn't fail.
-  const SERVICE_ID = /^[a-z0-9]{20,}$/.test(rawId)
-    ? rawId
-    : "cmtuhvfuu000tfyq8stoq3hb6"
+  // Resolve the service per the shared URL contract:
+  //   /booking/{slug}?serviceId={cuid}
+  //   /booking/{cuid}                      (legacy deep link)
+  // Anything unresolvable renders a not-found state — NEVER a silent
+  // fallback to a different service (that was the C1 bug).
+  const [service, setService] = useState<ResolvedService | null>(null)
+  const [serviceLoadState, setServiceLoadState] = useState<
+    "loading" | "ready" | "not-found" | "error"
+  >("loading")
+  const [serviceLoadError, setServiceLoadError] = useState("")
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      try {
+        const resolved = await fetchService(
+          resolveServiceRequest({
+            segmentId: rawId,
+            serviceIdParam: searchParams.get("serviceId"),
+          })
+        )
+        if (cancelled) return
+        if (resolved) {
+          setService(resolved)
+          setServiceLoadState("ready")
+        } else {
+          setServiceLoadState("not-found")
+        }
+      } catch (e) {
+        if (cancelled) return
+        setServiceLoadError(
+          e instanceof Error ? e.message : "Could not load the service."
+        )
+        setServiceLoadState("error")
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [rawId, searchParams])
 
   const [currentStep, setCurrentStep] = useState(0)
 
@@ -1186,7 +1276,7 @@ export default function BookingPage({
 
   // Create the real quote + booking in the backend (persists to MySQL).
   const submitBooking = useCallback(async (): Promise<boolean> => {
-    if (submitting) return false
+    if (submitting || !service) return false
     setSubmitting(true)
     setSubmitError("")
     try {
@@ -1195,7 +1285,7 @@ export default function BookingPage({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          serviceId: SERVICE_ID,
+          serviceId: service.id,
           tripType: tripData.tripType === "round-trip" ? "ROUND_TRIP" : "ONE_WAY",
           date: tripData.date,
           time: tripData.time,
@@ -1242,7 +1332,7 @@ export default function BookingPage({
     } finally {
       setSubmitting(false)
     }
-  }, [submitting, SERVICE_ID, tripData, customerData])
+  }, [submitting, service, tripData, customerData])
 
   const handlePayNow = useCallback(async () => {
     // Persist the booking regardless of payment method (status = WAITING_PAYMENT),
@@ -1254,15 +1344,86 @@ export default function BookingPage({
     }
   }, [submitBooking, paymentMethod])
 
-  // Calculate total for bank transfer (server price from quote is authoritative,
-  // but we keep parity with the booking-engine formula for the transfer screen)
-  const calculateTotal = useCallback(() => {
-    const basePrice = 350000
-    const subtotal = basePrice * tripData.passengers
-    const discount = tripData.tripType === "round-trip" ? Math.round(subtotal * 0.1) : 0
-    const serviceFee = 25000
-    return subtotal - discount + serviceFee
-  }, [tripData])
+  // Estimated total shown before the server quote exists. Mirrors the
+  // server price-engine formula: base price (+10% off return leg for round
+  // trips) + 5% service fee. The server recalculation remains authoritative.
+  const estimateTotal = useCallback(() => {
+    if (!service) return 0
+    const basePrice = service.basePrice
+    const subtotal =
+      tripData.tripType === "round-trip"
+        ? basePrice + basePrice * 0.9
+        : basePrice
+    const serviceFee = Math.round(subtotal * 0.05)
+    return Math.round(subtotal + serviceFee)
+  }, [service, tripData])
+
+  // Service resolution gate: never render the wizard for a service we could
+  // not resolve. A visible error beats a silently wrong booking (C1).
+  if (serviceLoadState !== "ready" || !service) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container-marivo py-8">
+          <div className="max-w-3xl mx-auto">
+            <div className={cn(cardClasses, "p-8 text-center space-y-4")}>
+              {serviceLoadState === "loading" && (
+                <>
+                  <div className="animate-pulse h-8 w-8 rounded-full bg-surface-container mx-auto" />
+                  <p className="text-body-md font-body-md text-on-surface-variant">
+                    Loading service details…
+                  </p>
+                </>
+              )}
+              {serviceLoadState === "not-found" && (
+                <>
+                  <SearchX className="h-12 w-12 text-outline mx-auto" />
+                  <h1 className="text-headline-sm font-headline-sm text-on-surface">
+                    Service Not Found
+                  </h1>
+                  <p className="text-body-md font-body-md text-on-surface-variant">
+                    The service you are trying to book does not exist or is no
+                    longer available. It may have been renamed — browse our
+                    catalog to find what you need.
+                  </p>
+                  <div className="flex flex-wrap gap-3 justify-center pt-2">
+                    <Link
+                      href="/"
+                      className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-md font-label-md hover:opacity-90 transition-opacity"
+                    >
+                      Back to Home
+                    </Link>
+                    <Link
+                      href="/airport-transfer"
+                      className="px-4 py-2 rounded-lg border border-outline-variant text-on-surface text-label-md font-label-md hover:bg-surface-container transition-colors"
+                    >
+                      Browse Services
+                    </Link>
+                  </div>
+                </>
+              )}
+              {serviceLoadState === "error" && (
+                <>
+                  <h1 className="text-headline-sm font-headline-sm text-on-surface">
+                    Something Went Wrong
+                  </h1>
+                  <p className="text-body-md font-body-md text-on-surface-variant">
+                    {serviceLoadError}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setServiceLoadState("loading")}
+                    className="px-4 py-2 rounded-lg bg-primary text-on-primary text-label-md font-label-md hover:opacity-90 transition-opacity"
+                  >
+                    Try Again
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -1273,7 +1434,11 @@ export default function BookingPage({
           {/* Step 0: Trip Information */}
           {currentStep === 0 && (
             <div className={cn(cardClasses, "p-6")}>
-              <StepTripInformation data={tripData} onNext={handleTripNext} />
+              <StepTripInformation
+                data={tripData}
+                onNext={handleTripNext}
+                serviceName={service.name}
+              />
             </div>
           )}
 
@@ -1336,6 +1501,8 @@ export default function BookingPage({
                   onBack={() => setCurrentStep(1)}
                   submitting={submitting}
                   submitError={submitError}
+                  serviceName={service.name}
+                  estimateTotal={estimateTotal()}
                 />
               </div>
               {/* Desktop sidebar */}
@@ -1371,7 +1538,7 @@ export default function BookingPage({
                       <div className="flex justify-between items-center">
                         <span className="text-on-surface-variant">Total</span>
                         <span className="text-lg font-bold text-on-surface">
-                          {(350000 * tripData.passengers - (tripData.tripType === "round-trip" ? Math.round(350000 * tripData.passengers * 0.1) : 0) + 25000).toLocaleString("vi-VN")} &#x20AB;
+                          {estimateTotal().toLocaleString("vi-VN")} &#x20AB;
                         </span>
                       </div>
                     </div>
@@ -1385,7 +1552,7 @@ export default function BookingPage({
           {currentStep === 3 && showBankTransfer && paymentMethod === "bank-transfer" ? (
             <div className={cn(cardClasses, "p-6")}>
               <StepBankTransfer
-                total={calculateTotal()}
+                total={estimateTotal()}
                 bookingCode={bookingResult?.bookingCode || "MRV250620-0001"}
                 onConfirm={() => {
                   setShowBankTransfer(false)
@@ -1408,7 +1575,7 @@ export default function BookingPage({
             <div className={cn(cardClasses, "p-6")}>
               <StepComplete
                 bookingCode={bookingResult?.bookingCode || ""}
-                serviceName="Airport Transfer"
+                serviceName={service.name}
                 customerName={customerData.fullName}
               />
             </div>

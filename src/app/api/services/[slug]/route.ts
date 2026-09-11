@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { successResponse, errorResponse } from "@/lib/api-utils"
+import { CUID_PATTERN } from "@/lib/service-resolver"
 
 export async function GET(
   request: NextRequest,
@@ -9,8 +10,13 @@ export async function GET(
   try {
     const { slug } = await params
 
-    const service = await prisma.service.findUnique({
-      where: { slug, isActive: true },
+    // The booking wizard passes either a slug (canonical) or a legacy Prisma
+    // cuid deep link — resolve both against the same rich detail payload.
+    const service = await prisma.service.findFirst({
+      where: {
+        isActive: true,
+        ...(CUID_PATTERN.test(slug) ? { id: slug } : { slug }),
+      },
       include: {
         category: {
           select: { id: true, name: true, slug: true, icon: true },

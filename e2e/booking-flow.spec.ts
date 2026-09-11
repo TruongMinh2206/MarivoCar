@@ -49,7 +49,10 @@ test.describe("P0 booking flow", () => {
 
   test("guest completes the 4-step booking wizard end to end", async ({ page }) => {
     // ── Step 1: Trip information ────────────────────────────────────────────
-    await page.goto("/booking/sedan")
+    // Real seeded service slug (this used to be /booking/sedan, which only
+    // worked by accident: the slug "sedan" matched no service and the old
+    // wizard silently fell back to the airport sedan).
+    await page.goto("/booking/airport-transfer-sedan")
 
     await expect(
       page.getByRole("heading", { name: /trip information/i })
