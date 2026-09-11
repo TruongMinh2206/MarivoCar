@@ -48,12 +48,29 @@ function ResetPasswordForm() {
 
     setLoading(true)
 
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password }),
+      })
 
-    // Simulate successful reset
-    setLoading(false)
-    setSuccess(true)
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setError(
+          json?.error?.message ||
+            "An unexpected error occurred. Please try again."
+        )
+        setLoading(false)
+        return
+      }
+
+      setLoading(false)
+      setSuccess(true)
+    } catch {
+      setError("An unexpected error occurred. Please try again.")
+      setLoading(false)
+    }
   }
 
   if (success) {

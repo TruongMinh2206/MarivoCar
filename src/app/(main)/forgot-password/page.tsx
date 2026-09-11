@@ -16,19 +16,25 @@ export default function ForgotPasswordPage() {
     setError("")
     setLoading(true)
 
-    await new Promise((resolve) => setTimeout(resolve, 800))
-
     try {
-      const usersRaw = localStorage.getItem("marivo_users")
-      const users: Array<{ email: string }> = usersRaw ? JSON.parse(usersRaw) : []
-      const exists = users.some((u) => u.email === email.trim().toLowerCase())
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
 
-      if (!exists) {
-        setError("No account found with this email address.")
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setError(
+          json?.error?.message ||
+            "An unexpected error occurred. Please try again."
+        )
         setLoading(false)
         return
       }
 
+      // The API returns a generic success regardless of whether the
+      // email exists — the confirmation screen must not leak it either.
       setSent(true)
       setLoading(false)
     } catch {

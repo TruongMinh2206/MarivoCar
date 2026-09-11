@@ -40,11 +40,30 @@ export class ConflictError extends AppError {
   }
 }
 
+export class TooManyRequestsError extends AppError {
+  /**
+   * @param retryAfterMs how long the client should wait before retrying.
+   * Surfaces as a `Retry-After` (seconds) header in the JSON response.
+   */
+  constructor(public retryAfterMs: number) {
+    const retryAfterSec = Math.ceil(retryAfterMs / 1000)
+    super(
+      429,
+      "TOO_MANY_REQUESTS",
+      `Too many requests. Please try again in ${retryAfterSec} seconds.`
+    )
+  }
+}
+
 export function handleApiError(error: unknown) {
   if (error instanceof AppError) {
+    const headers: Record<string, string> = {}
+    if (error instanceof TooManyRequestsError) {
+      headers["Retry-After"] = String(Math.ceil(error.retryAfterMs / 1000))
+    }
     return Response.json(
       { error: { code: error.code, message: error.message, requestId: error.requestId } },
-      { status: error.statusCode },
+      { status: error.statusCode, headers },
     )
   }
   // Handle Zod validation errors
