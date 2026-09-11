@@ -5,6 +5,273 @@ const prisma = new PrismaClient()
 
 const SALT_ROUNDS = 10
 
+// ============ M4: RENT-A-CAR (SELF-DRIVE) & LOCAL PRODUCTS ============
+// Seeds 2-3 services for the rent-a-car and products categories so their
+// list pages and DB-backed detail pages have real content. Previously only
+// legacy hardcoded [id] pages existed for these categories (now deleted).
+//
+// These are standalone functions (looking up their own category/location/
+// vehicle-type references by unique slug) so the same data can be applied
+// to an already-seeded database without re-running the full seed, which is
+// NOT re-runnable (createMany sections would violate unique constraints
+// and duplicate rows):
+//
+//   npx tsx prisma/seed.ts --only-m4
+
+async function seedRentACarServices(): Promise<void> {
+  console.log("🚗 Seeding self-drive rent-a-car services...")
+
+  const [category, location, vtSedan, vtSUV, vtMotorbike] = await Promise.all([
+    prisma.serviceCategory.findUniqueOrThrow({ where: { slug: "rent-a-car" } }),
+    prisma.location.findUniqueOrThrow({ where: { slug: "duong-dong" } }),
+    prisma.vehicleType.findUniqueOrThrow({ where: { slug: "sedan" } }),
+    prisma.vehicleType.findUniqueOrThrow({ where: { slug: "suv" } }),
+    prisma.vehicleType.findUniqueOrThrow({ where: { slug: "motorbike" } }),
+  ])
+
+  const selfDriveSedan = await prisma.service.upsert({
+    where: { slug: "self-drive-sedan" },
+    update: {},
+    create: {
+      name: "Self-Drive Sedan Rental",
+      slug: "self-drive-sedan",
+      shortDescription: "Drive your own 4-seat sedan around Phu Quoc",
+      description:
+        "Rent a modern 4-seat sedan and explore Phu Quoc at your own pace. Insurance, 24/7 roadside assistance, and free delivery to your hotel are included in the daily rate.",
+      categoryId: category.id,
+      locationId: location.id,
+      basePrice: 800000,
+      currency: "VND",
+      isActive: true,
+      isFeatured: true,
+      sortOrder: 1,
+      metadata: {
+        type: "rent-a-car",
+        selfDrive: true,
+        dailyRate: 800000,
+        deposit: 3000000,
+        includes: ["Insurance", "24/7 roadside assistance", "Hotel delivery"],
+      },
+      policies: {
+        requirements: "Valid driver's license, 21+ years old",
+        fuel: "Full-to-full policy",
+        mileage: "Unlimited mileage",
+      },
+    },
+  })
+
+  const selfDriveSUV = await prisma.service.upsert({
+    where: { slug: "self-drive-suv" },
+    update: {},
+    create: {
+      name: "Self-Drive SUV Rental",
+      slug: "self-drive-suv",
+      shortDescription: "Self-drive 7-seat SUV for island exploration",
+      description:
+        "A comfortable 7-seat SUV for families and groups who prefer to drive themselves. Comes with full insurance, unlimited mileage, and free hotel delivery anywhere on the island.",
+      categoryId: category.id,
+      locationId: location.id,
+      basePrice: 1200000,
+      currency: "VND",
+      isActive: true,
+      isFeatured: false,
+      sortOrder: 2,
+      metadata: {
+        type: "rent-a-car",
+        selfDrive: true,
+        dailyRate: 1200000,
+        deposit: 5000000,
+        includes: ["Insurance", "24/7 roadside assistance", "Hotel delivery"],
+      },
+      policies: {
+        requirements: "Valid driver's license, 21+ years old",
+        fuel: "Full-to-full policy",
+        mileage: "Unlimited mileage",
+      },
+    },
+  })
+
+  const selfDriveMotorbike = await prisma.service.upsert({
+    where: { slug: "self-drive-motorbike" },
+    update: {},
+    create: {
+      name: "Scooter & Motorbike Rental",
+      slug: "self-drive-motorbike",
+      shortDescription: "Automatic scooter rental, the classic island way",
+      description:
+        "The most popular way to explore Phu Quoc. Reliable automatic scooters with helmets, phone holders, and rain ponchos included. Free delivery to your hotel or the airport.",
+      categoryId: category.id,
+      locationId: location.id,
+      basePrice: 150000,
+      currency: "VND",
+      isActive: true,
+      isFeatured: false,
+      sortOrder: 3,
+      metadata: {
+        type: "rent-a-car",
+        selfDrive: true,
+        dailyRate: 150000,
+        deposit: 1000000,
+        includes: ["2 helmets", "Phone holder", "Rain ponchos"],
+      },
+      policies: {
+        requirements: "Valid A1/A2 driver's license or international permit",
+        fuel: "Full-to-full policy",
+      },
+    },
+  })
+
+  console.log("  ✓ Self-drive services created (sedan, SUV, motorbike)")
+
+  // Vehicle.slug is not a unique column, so these cannot be upserted; only
+  // create when the services do not have vehicles yet (idempotent re-runs).
+  const vehicleCount = await prisma.vehicle.count({
+    where: {
+      serviceId: {
+        in: [selfDriveSedan.id, selfDriveSUV.id, selfDriveMotorbike.id],
+      },
+    },
+  })
+  if (vehicleCount === 0) {
+    await prisma.vehicle.createMany({
+      data: [
+        {
+          serviceId: selfDriveSedan.id,
+          vehicleTypeId: vtSedan.id,
+          name: "Toyota Vios",
+          slug: "toyota-vios-self-drive",
+          description: "Reliable automatic sedan, ideal for island roads",
+          seats: 4,
+          luggage: 3,
+          pricePerTrip: 800000,
+          currency: "VND",
+          isActive: true,
+        },
+        {
+          serviceId: selfDriveSUV.id,
+          vehicleTypeId: vtSUV.id,
+          name: "Toyota Fortuner",
+          slug: "toyota-fortuner-self-drive",
+          description: "Spacious 7-seat SUV for families and groups",
+          seats: 7,
+          luggage: 5,
+          pricePerTrip: 1200000,
+          currency: "VND",
+          isActive: true,
+        },
+        {
+          serviceId: selfDriveMotorbike.id,
+          vehicleTypeId: vtMotorbike.id,
+          name: "Honda Air Blade",
+          slug: "honda-air-blade-self-drive",
+          description: "Automatic scooter, the classic way to see the island",
+          seats: 2,
+          luggage: 1,
+          pricePerTrip: 150000,
+          currency: "VND",
+          isActive: true,
+        },
+      ],
+    })
+    console.log("  ✓ Self-drive vehicles created")
+  }
+}
+
+async function seedLocalProducts(): Promise<void> {
+  console.log("🛍️ Seeding local product services...")
+
+  const [category, location] = await Promise.all([
+    prisma.serviceCategory.findUniqueOrThrow({ where: { slug: "products" } }),
+    prisma.location.findUniqueOrThrow({ where: { slug: "duong-dong" } }),
+  ])
+
+  await prisma.service.upsert({
+    where: { slug: "phu-quoc-fish-sauce" },
+    update: {},
+    create: {
+      name: "Phu Quoc Fish Sauce (Nước Mắm) 500ml",
+      slug: "phu-quoc-fish-sauce",
+      shortDescription: "Premium 43° nitrogen fish sauce, island's signature",
+      description:
+        "Phu Quoc fish sauce is a national treasure, protected by geographical indication. This premium 43° nitrogen sauce is aged 12-15 months in wooden barrels by traditional producers. 500ml glass bottle, securely packed for travel.",
+      categoryId: category.id,
+      locationId: location.id,
+      basePrice: 180000,
+      currency: "VND",
+      isActive: true,
+      isFeatured: true,
+      sortOrder: 1,
+      metadata: {
+        type: "product",
+        unit: "500ml bottle",
+        origin: "Phu Quoc, Vietnam",
+        certification: "PGI (Protected Geographical Indication)",
+        packaging: "Travel-safe glass bottle",
+      },
+    },
+  })
+
+  await prisma.service.upsert({
+    where: { slug: "phu-quoc-black-pepper" },
+    update: {},
+    create: {
+      name: "Phu Quoc Black Pepper 250g",
+      slug: "phu-quoc-black-pepper",
+      shortDescription: "Sun-dried black pepper from island pepper farms",
+      description:
+        "Grown on Phu Quoc's red-soil pepper farms, our sun-dried black pepper has a bold, pungent aroma prized by chefs. Harvested by smallholder farms in Cua Duong and Cua Can. 250g resealable pouch.",
+      categoryId: category.id,
+      locationId: location.id,
+      basePrice: 90000,
+      currency: "VND",
+      isActive: true,
+      isFeatured: false,
+      sortOrder: 2,
+      metadata: {
+        type: "product",
+        unit: "250g pouch",
+        origin: "Phu Quoc, Vietnam",
+        packaging: "Resealable pouch",
+      },
+    },
+  })
+
+  await prisma.service.upsert({
+    where: { slug: "phu-quoc-sim-wine" },
+    update: {},
+    create: {
+      name: "Sim Wine (Rượu Sim) 750ml",
+      slug: "phu-quoc-sim-wine",
+      shortDescription: "Rose myrtle fruit wine, a Phu Quoc specialty",
+      description:
+        "Made from wild rose myrtle (sim) berries harvested on the island's hills, this sweet fruit wine is a Phu Quoc original. Enjoy it chilled as an aperitif or after-dinner drink. 750ml bottle.",
+      categoryId: category.id,
+      locationId: location.id,
+      basePrice: 250000,
+      currency: "VND",
+      isActive: true,
+      isFeatured: false,
+      sortOrder: 3,
+      metadata: {
+        type: "product",
+        unit: "750ml bottle",
+        origin: "Phu Quoc, Vietnam",
+        alcohol: "12% vol",
+        packaging: "Bubble-wrapped for travel",
+      },
+    },
+  })
+
+  console.log("  ✓ Local product services created (fish sauce, pepper, sim wine)")
+}
+
+async function seedM4(): Promise<void> {
+  console.log("🌱 Seeding M4 package data (rent-a-car & local products)...")
+  await seedRentACarServices()
+  await seedLocalProducts()
+  console.log("\n✅ M4 seed completed successfully!")
+}
+
 async function main() {
   console.log("🌱 Seeding MARIVO database...")
 
@@ -778,6 +1045,11 @@ async function main() {
     },
   })
 
+  // --- Rent-a-Car (self-drive) & Local Products (M4) ---
+  // See the standalone functions above for details and --only-m4 usage.
+  await seedRentACarServices()
+  await seedLocalProducts()
+
   console.log("  ✓ Services created")
 
   // ============ SERVICE IMAGES ============
@@ -1259,8 +1531,8 @@ async function main() {
   - Categories: 10 + 1 (guide articles)
   - Locations: 11
   - Vehicle Types: 4
-  - Services: 12
-  - Vehicles: 5
+  - Services: 12 + 6 (rent-a-car self-drive, local products)
+  - Vehicles: 5 + 3 (self-drive)
   - Hotels: 1 with 3 rooms
   - Restaurants: 1
   - Spas: 1
@@ -1269,7 +1541,14 @@ async function main() {
   `)
 }
 
-main()
+// The full seed is not re-runnable on an already-seeded database (createMany
+// sections violate unique constraints and duplicate rows). --only-m4 applies
+// just the rent-a-car / local-products package (idempotent) to an existing DB.
+const isM4Only = process.argv.includes("--only-m4")
+
+const runSeed = isM4Only ? seedM4 : main
+
+runSeed()
   .catch((e) => {
     console.error("❌ Seed failed:", e)
     process.exit(1)
