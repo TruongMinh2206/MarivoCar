@@ -18,8 +18,10 @@ import { test, expect } from "@playwright/test"
  *   3. /rent-a-car and /products list pages show the seeded services (M4).
  *   4. Numeric legacy URLs (/hotels/1) fall through to the dynamic route and
  *      surface the error state instead of a fabricated detail page.
+ *
+ * All paths are relative so the spec uses the Playwright baseURL
+ * (per-worktree port) instead of a hardcoded origin.
  */
-const BASE = "http://localhost:3100"
 
 // Seeded slugs — see prisma/seed.ts
 const DB_SERVICES = [
@@ -52,7 +54,7 @@ test.describe("DB-backed detail pages replace legacy [id] pages", () => {
     test(`detail page /${svc.category}/${svc.slug} renders DB service data`, async ({
       page,
     }) => {
-      await page.goto(`${BASE}/${svc.category}/${svc.slug}`)
+      await page.goto(`/${svc.category}/${svc.slug}`)
 
       // The DB name renders as the page h1 — legacy pages showed hardcoded
       // names ("4 Islands Snorkeling Tour", "Premier Village Phu Quoc") that
@@ -72,7 +74,7 @@ test.describe("DB-backed detail pages replace legacy [id] pages", () => {
   test("detail page Book Now navigates to wizard with contract URL", async ({
     page,
   }) => {
-    await page.goto(`${BASE}/tours/four-islands-tour`)
+    await page.goto(`/tours/four-islands-tour`)
 
     // Contract: /booking/<slug>?serviceId=<cuid> — emitted by this page,
     // consumed by the booking wizard (Gói 1).
@@ -94,7 +96,7 @@ test.describe("DB-backed detail pages replace legacy [id] pages", () => {
   test("numeric legacy URL /hotels/1 surfaces error state, not legacy content", async ({
     page,
   }) => {
-    await page.goto(`${BASE}/hotels/1`)
+    await page.goto(`/hotels/1`)
 
     // With the legacy [id] route gone, /hotels/1 falls through to
     // [category]/[slug]; the service API 404s for slug "1" and the page
@@ -108,7 +110,7 @@ test.describe("DB-backed detail pages replace legacy [id] pages", () => {
   })
 
   test("rent-a-car list shows seeded self-drive services", async ({ page }) => {
-    await page.goto(`${BASE}/rent-a-car`)
+    await page.goto(`/rent-a-car`)
 
     const cards = page.locator("a[href*='/rent-a-car/']")
     await expect(cards.first()).toBeVisible({ timeout: 20_000 })
@@ -116,7 +118,7 @@ test.describe("DB-backed detail pages replace legacy [id] pages", () => {
   })
 
   test("products list shows seeded local specialties", async ({ page }) => {
-    await page.goto(`${BASE}/products`)
+    await page.goto(`/products`)
 
     const cards = page.locator("a[href*='/products/']")
     await expect(cards.first()).toBeVisible({ timeout: 20_000 })
