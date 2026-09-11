@@ -1,5 +1,5 @@
 "use client"
-import { use } from "react"
+import { use, useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { ChevronRight, MapPin, Users, Luggage, Clock } from "lucide-react"
 import { useServiceDetail } from "@/hooks/useServiceDetail"
@@ -13,7 +13,63 @@ import { Button } from "@/components/ui/Button"
 import { Card } from "@/components/ui/Card"
 import { ServiceDetailSkeleton } from "@/components/ui/LoadingSkeleton"
 import { ErrorState } from "@/components/ui/ErrorState"
+import { ReviewForm } from "@/components/reviews/ReviewForm"
+import { ReviewList, type ReviewItem } from "@/components/reviews/ReviewList"
 import type { Quote } from "@/types"
+
+/** Reviews section: guest review form + live list, reloaded after each submit. */
+function ReviewsSection({
+  serviceId,
+  serviceName,
+}: {
+  serviceId: string
+  serviceName: string
+}) {
+  const [reviews, setReviews] = useState<ReviewItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadReviews = useCallback(async (): Promise<void> => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/reviews?serviceId=${encodeURIComponent(serviceId)}`)
+      if (!res.ok) {
+        throw new Error("Failed to load reviews")
+      }
+      const json = await res.json()
+      setReviews(Array.isArray(json.data) ? json.data : [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load reviews")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [serviceId])
+
+  useEffect(() => {
+    void loadReviews()
+  }, [loadReviews])
+
+  return (
+    <section aria-labelledby="reviews-heading" className="space-y-8">
+      <div>
+        <h2 id="reviews-heading" className="text-headline-sm font-headline-sm text-primary mb-4">
+          Reviews
+        </h2>
+
+        <ReviewForm serviceId={serviceId} serviceName={serviceName} onCreated={loadReviews} />
+      </div>
+
+      {isLoading ? (
+        <p className="text-body-md font-body-md text-on-surface-variant">Loading reviews...</p>
+      ) : error ? (
+        <ErrorState title="Reviews Unavailable" message={error} onRetry={loadReviews} />
+      ) : (
+        <ReviewList reviews={reviews} />
+      )}
+    </section>
+  )
+}
 
 export default function ServiceDetailPage({
   params,
@@ -162,6 +218,9 @@ export default function ServiceDetailPage({
             cancellationPolicy={service.cancellationPolicy as Record<string, unknown> | null}
             tour={service.tour}
           />
+
+          {/* Reviews */}
+          <ReviewsSection serviceId={service.id} serviceName={service.name} />
         </div>
 
         {/* Sidebar - Booking Summary */}
