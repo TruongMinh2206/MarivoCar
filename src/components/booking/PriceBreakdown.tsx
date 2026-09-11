@@ -1,4 +1,5 @@
 import { Price } from "@/components/ui/Price"
+import { formatPrice } from "@/lib/format"
 import type { Quote } from "@/types"
 
 interface PriceBreakdownProps {
@@ -31,7 +32,7 @@ function PriceBreakdown({ quote, compact = false }: PriceBreakdownProps) {
         {quote.discount > 0 && (
           <div className="flex justify-between text-sm text-green-600">
             <span>Discount</span>
-            <span>-{quote.discount.toLocaleString()} ₫</span>
+            <span>-{formatPrice(quote.discount)}</span>
           </div>
         )}
         <div className="flex justify-between text-sm">

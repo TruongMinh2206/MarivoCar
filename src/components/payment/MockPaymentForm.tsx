@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { CreditCard, XCircle, ShieldCheck, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/Button"
+import { formatPrice } from "@/lib/format"
 
 interface Props {
   /** Transaction id issued by the mock payment provider */
@@ -21,11 +22,6 @@ export function MockPaymentForm({ txn, amount, currency, bookingCode }: Props) {
   const router = useRouter()
   const [processing, setProcessing] = useState<PaymentStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
-
-  const formatAmount = (value: number, code: string): string =>
-    code === "VND"
-      ? `${value.toLocaleString("vi-VN")} ₫`
-      : `${value.toLocaleString()} ${code}`
 
   // A mock provider session without a transaction id can never be completed.
   if (!txn) {
@@ -121,7 +117,7 @@ export function MockPaymentForm({ txn, amount, currency, bookingCode }: Props) {
             Amount due
           </span>
           <span className="text-headline-sm font-headline-sm font-bold text-on-surface">
-            {formatAmount(amount, currency)}
+            {formatPrice(amount, currency)}
           </span>
         </div>
         <div className="flex items-center justify-between text-xs text-on-surface-variant">
@@ -150,7 +146,7 @@ export function MockPaymentForm({ txn, amount, currency, bookingCode }: Props) {
           loading={processing === "PAID"}
         >
           <CreditCard className="h-4 w-4" />
-          Pay {formatAmount(amount, currency)}
+          Pay {formatPrice(amount, currency)}
         </Button>
         <Button
           variant="outline"
