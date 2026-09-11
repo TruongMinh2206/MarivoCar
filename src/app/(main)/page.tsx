@@ -49,14 +49,18 @@ const WHY_US = [
   },
 ]
 
+// Prices are VND, aligned with the seeded services in prisma/seed.ts:
+// airport-transfer-sedan (350,000₫), four-islands-tour (1,200,000₫),
+// vinwonders-ticket (950,000₫), phu-quoc-spa-retreat (400,000₫).
 const POPULAR_SERVICES = [
   {
     id: 1,
     category: "Transfer",
     title: "Private Airport Transfer",
     rating: 4.9,
-    price: "$25",
+    price: 350000,
     unit: "/trip",
+    href: "/airport-transfer",
     image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&h=400&fit=crop",
   },
   {
@@ -64,8 +68,9 @@ const POPULAR_SERVICES = [
     category: "Tour",
     title: "4 Islands Snorkeling Tour",
     rating: 4.8,
-    price: "$35",
+    price: 1200000,
     unit: "/person",
+    href: "/tours",
     image: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=600&h=400&fit=crop",
   },
   {
@@ -73,8 +78,9 @@ const POPULAR_SERVICES = [
     category: "Ticket",
     title: "VinWonders Full Day Pass",
     rating: 4.7,
-    price: "$30",
+    price: 950000,
     unit: "/person",
+    href: "/tickets",
     image: "https://images.unsplash.com/photo-1514565131-fce0801e5785?w=600&h=400&fit=crop",
   },
   {
@@ -82,27 +88,32 @@ const POPULAR_SERVICES = [
     category: "Spa",
     title: "Premium Spa Package",
     rating: 4.9,
-    price: "$40",
+    price: 400000,
     unit: "/session",
+    href: "/spa",
     image: "https://images.unsplash.com/photo-1540555700478-4be289fbec6d?w=600&h=400&fit=crop",
   },
 ]
 
+// Slugs are real seeded guide articles (prisma/seed.ts — Guide section).
 const EXPLORE_GUIDES = [
   {
-    title: "Best Beaches in Phu Quoc",
-    desc: "Discover pristine white sand beaches and crystal clear waters.",
-    image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&h=400&fit=crop",
-  },
-  {
-    title: "Top Things to Do",
-    desc: "Must-try experiences and activities on the island.",
+    title: "Top 10 Things to Do in Phu Quoc",
+    desc: "Discover the best activities and attractions in Phu Quoc.",
+    slug: "top-10-things-to-do",
     image: "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=600&h=400&fit=crop",
   },
   {
-    title: "Where to Eat",
-    desc: "Best seafood restaurants and local dining spots.",
+    title: "Phu Quoc Food Guide: What to Eat",
+    desc: "A complete guide to the best food in Phu Quoc.",
+    slug: "phu-quoc-food-guide",
     image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&h=400&fit=crop",
+  },
+  {
+    title: "Getting Around Phu Quoc: Transportation Guide",
+    desc: "Everything you need to know about getting around Phu Quoc.",
+    slug: "phu-quoc-transportation-guide",
+    image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&h=400&fit=crop",
   },
 ]
 
@@ -255,7 +266,7 @@ export default function HomePage() {
             {POPULAR_SERVICES.map((service) => (
               <Link
                 key={service.id}
-                href="/airport-transfer"
+                href={service.href}
                 className="bg-surface-container-lowest rounded-xl shadow-ambient border border-outline-variant overflow-hidden hover:shadow-hover transition-shadow group"
               >
                 {/* Image */}
@@ -280,7 +291,7 @@ export default function HomePage() {
                   <div className="flex justify-between items-end mt-4">
                     <span className="text-xs text-on-surface-variant">From</span>
                     <span className="text-body-xl font-body-xl font-bold text-primary">
-                      {service.price}
+                      {service.price.toLocaleString("vi-VN")} ₫
                       <span className="text-xs text-on-surface-variant font-normal">
                         {service.unit}
                       </span>
@@ -314,8 +325,8 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {EXPLORE_GUIDES.map((guide) => (
               <Link
-                key={guide.title}
-                href="/guide"
+                key={guide.slug}
+                href={`/guide/${guide.slug}`}
                 className="bg-surface-container-lowest rounded-xl shadow-ambient overflow-hidden hover:shadow-hover transition-shadow group"
               >
                 <div className="h-48 relative overflow-hidden">

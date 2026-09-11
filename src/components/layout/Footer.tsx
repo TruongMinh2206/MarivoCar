@@ -21,9 +21,9 @@ const FOOTER_LINKS = {
     { label: "Phu Quoc Guide", href: "/guide" },
   ],
   legal: [
-    { label: "Privacy Policy", href: "/guide" },
-    { label: "Terms of Service", href: "/guide" },
-    { label: "FAQ", href: "/guide" },
+    { label: "Privacy Policy", href: "/privacy" },
+    { label: "Terms of Service", href: "/terms" },
+    { label: "FAQ", href: "/faq" },
   ],
 }
 
@@ -104,7 +104,19 @@ export function Footer() {
           <p className="text-label-sm font-label-sm text-on-primary-container text-center md:text-left">
             &copy; {new Date().getFullYear()} MARIVO.vn - Phu Quoc Travel Expert. All Rights Reserved.
           </p>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8">
+            {/* Legal links */}
+            <nav aria-label="Legal" className="flex items-center gap-4">
+              {FOOTER_LINKS.legal.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-label-sm font-label-sm text-on-primary-container hover:text-secondary-container transition-colors"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
             {/* Payment indicators */}
             <div className="flex items-center gap-2 text-label-sm font-label-sm text-white/40">
               <span className="px-2 py-1 border border-white/10 rounded text-[10px] font-bold">VISA</span>
