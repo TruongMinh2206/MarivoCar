@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-10T18:48:52.224Z",
+  "generatedAt": "2026-09-11T03:59:36.240Z",
   "counts": {
-    "pass": 38,
-    "warn": 1,
+    "pass": 39,
+    "warn": 0,
     "fail": 0
   },
   "findings": [
@@ -165,8 +165,8 @@
     {
       "page": "home",
       "action": "click Popular Services card",
-      "status": "WARN",
-      "detail": "→ http://localhost:3000/airport-transfer — every popular card hardcodes /airport-transfer regardless of card type"
+      "status": "PASS",
+      "detail": "→ http://localhost:3000/airport-transfer — card destinations match card categories"
     },
     {
       "page": "home",

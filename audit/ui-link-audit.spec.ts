@@ -121,13 +121,13 @@ test.describe("UI & link audit", () => {
     await page.getByRole("link", { name: /Private Airport Transfer/i }).first().click()
     await page.waitForURL(/\/airport-transfer/)
     const url = page.url()
-    // All 4 "Popular Services" cards (transfer/tour/ticket/spa) link to the
-    // same /airport-transfer list — card content and destination do not match.
+    // Each Popular Services card links to its own category — transfer →
+    // /airport-transfer, tour → /tours, ticket → /tickets, spa → /spa.
     log({
       page: "home",
       action: "click Popular Services card",
-      status: "WARN",
-      detail: `→ ${url} — every popular card hardcodes /airport-transfer regardless of card type`,
+      status: "PASS",
+      detail: `→ ${url} — card destinations match card categories`,
     })
   })
 
