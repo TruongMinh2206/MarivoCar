@@ -168,7 +168,7 @@ export function ReviewForm({ serviceId, serviceName, onCreated }: ReviewFormProp
                     className={cn(
                       "h-7 w-7",
                       isFilled
-                        ? "fill-sunset-400 text-sunset-400"
+                        ? "fill-gold-400 text-gold-400"
                         : "fill-transparent text-outline-variant"
                     )}
                   />
