@@ -50,6 +50,7 @@ vi.mock("../price-engine", () => ({
 
 vi.mock("../booking-code", () => ({
   generateBookingCode: vi.fn().mockReturnValue("MRV250315-0001"),
+  ensureUniqueBookingCode: vi.fn().mockResolvedValue("MRV250315-0001"),
 }))
 
 vi.mock("../quote-engine", () => ({
@@ -79,6 +80,7 @@ vi.mock("../quote-engine", () => ({
 }))
 
 import { createBooking, getBookingByCode, cancelBooking, confirmBooking } from "../booking-engine"
+import { ensureUniqueBookingCode } from "../booking-code"
 import { prisma } from "../prisma"
 
 describe("Booking Engine", () => {
@@ -143,6 +145,38 @@ describe("Booking Engine", () => {
         },
       })
 
+      expect(result.bookingCode).toBe("MRV250315-0001")
+    })
+
+    it("should obtain the booking code via ensureUniqueBookingCode (collision-safe)", async () => {
+      // Regression: createBooking used generateBookingCode() directly — a single
+      // random draw with only 9999 sequences per day. Concurrent bookings on the
+      // same day (e.g. parallel test agents sharing one MySQL) collide on the
+      // bookingCode unique constraint → P2002 → 500 "unexpected error".
+      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
+        const mockTx = {
+          booking: {
+            create: vi.fn().mockResolvedValue({
+              id: "booking-1",
+              bookingCode: "MRV250315-0001",
+              status: "WAITING_PAYMENT",
+              total: 525000,
+            }),
+          },
+        }
+        return fn(mockTx)
+      })
+
+      const result = await createBooking({
+        quoteId: "quote-1",
+        customer: {
+          fullName: "Guest User",
+          email: "guest@example.com",
+          phone: "0901234567",
+        },
+      })
+
+      expect(ensureUniqueBookingCode).toHaveBeenCalledTimes(1)
       expect(result.bookingCode).toBe("MRV250315-0001")
     })
   })

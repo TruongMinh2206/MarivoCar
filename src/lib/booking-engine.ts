@@ -2,7 +2,7 @@ import { prisma } from "./prisma"
 import { AppError, ForbiddenError } from "./errors"
 import { validateQuote, markQuoteUsed } from "./quote-engine"
 import { reserveCapacity } from "./availability-engine"
-import { generateBookingCode } from "./booking-code"
+import { ensureUniqueBookingCode } from "./booking-code"
 import { audit } from "./audit"
 import { BookingStatus, UserRole } from "@prisma/client"
 
@@ -52,7 +52,9 @@ export async function createBooking(input: CreateBookingInput) {
     luggage: quote.luggage,
   })
 
-  const bookingCode = generateBookingCode()
+  // Collision-safe code: checks the DB and retries (a plain random draw only
+  // has 9999 sequences per day and P2002s under concurrent inserts).
+  const bookingCode = await ensureUniqueBookingCode()
 
   // Create booking in a transaction
   const booking = await prisma.$transaction(async (tx) => {
