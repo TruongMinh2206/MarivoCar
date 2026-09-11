@@ -53,6 +53,9 @@ export default function RegisterPage() {
       newErrors.password = "Password is required."
     } else if (password.length < 8) {
       newErrors.password = "Password must be at least 8 characters."
+    } else if (!/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+      newErrors.password =
+        "Password must contain at least one uppercase letter and one number."
     }
 
     if (!confirmPassword) {
@@ -81,40 +84,30 @@ export default function RegisterPage() {
 
     setLoading(true)
 
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
     try {
-      // Mock registration - store user in localStorage
-      const usersRaw = localStorage.getItem("marivo_users")
-      const users: Array<{
-        id: string
-        name: string
-        email: string
-        phone: string
-        password: string
-      }> = usersRaw ? JSON.parse(usersRaw) : []
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          phone,
+          password,
+        }),
+      })
 
-      // Check if email already exists
-      if (users.some((u) => u.email === email)) {
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        const message =
+          json?.error?.message || "An unexpected error occurred. Please try again."
         setServerError(
-          "An account with this email already exists. Please use a different email."
+          res.status === 409
+            ? "An account with this email already exists. Please use a different email."
+            : message
         )
         setLoading(false)
         return
       }
-
-      // Generate a simple unique ID
-      const newUser = {
-        id: `usr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone.trim(),
-        password: password,
-      }
-
-      users.push(newUser)
-      localStorage.setItem("marivo_users", JSON.stringify(users))
 
       // Redirect to login with success message
       router.push("/login?registered=1")

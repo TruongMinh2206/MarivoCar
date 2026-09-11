@@ -7,7 +7,9 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/lib/auth"
 import { errorResponse } from "@/lib/api-utils"
-import { UnauthorizedError, ValidationError } from "@/lib/errors"
+import { UnauthorizedError, ValidationError, TooManyRequestsError } from "@/lib/errors"
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
+import { RATE_LIMIT } from "@/lib/constants"
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -17,6 +19,15 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Throttle brute-force attempts: 5 per IP per 15-minute window.
+    const rateLimit = checkRateLimit(
+      `login:${getClientIp(request)}`,
+      RATE_LIMIT.LOGIN
+    )
+    if (!rateLimit.allowed) {
+      throw new TooManyRequestsError(rateLimit.retryAfterMs)
+    }
+
     const body = await request.json()
     const parsed = loginSchema.safeParse(body)
     if (!parsed.success) {
