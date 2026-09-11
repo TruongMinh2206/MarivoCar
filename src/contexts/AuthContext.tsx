@@ -8,6 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react"
+import { resolveSessionUser } from "@/lib/auth-session"
 
 export interface AuthUser {
   id: string
@@ -38,7 +39,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch("/api/auth/me", { cache: "no-store" })
       const json = await res.json()
-      setUser(json.user || null)
+      // The API wraps the payload in the successResponse envelope
+      // ({data:{user}}) when a session exists but returns {user:null}
+      // without one — resolveSessionUser handles both shapes. Reading
+      // only json.user here dropped valid sessions on every page load.
+      setUser(resolveSessionUser(json))
     } catch {
       setUser(null)
     } finally {
@@ -61,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!res.ok) {
         throw new Error(json.error?.message || "Login failed")
       }
-      setUser(json.data.user)
+      setUser(resolveSessionUser(json))
     },
     []
   )
