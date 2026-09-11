@@ -32,7 +32,7 @@ const PAGES: Array<{ name: string; path: string }> = [
   { name: "tours-detail", path: "/tours/four-islands-tour" },
   { name: "tickets", path: "/tickets" },
   { name: "hotels", path: "/hotels" },
-  { name: "hotels-detail-legacy", path: "/hotels/1" },
+  { name: "hotels-detail", path: "/hotels/jw-marriott-phu-quoc-emerald-bay" },
   { name: "restaurants", path: "/restaurants" },
   { name: "spa", path: "/spa" },
   { name: "products", path: "/products" },
@@ -44,8 +44,10 @@ const PAGES: Array<{ name: string; path: string }> = [
   { name: "login", path: "/login" },
   { name: "register", path: "/register" },
   { name: "forgot-password", path: "/forgot-password" },
+  // Legacy numeric detail/booking URLs (/hotels/1, /booking/20) were removed
+  // with the [id] routes; slug-based wizard URLs (/booking/<slug>?serviceId=)
+  // are covered by e2e/legacy-detail-pages.spec.ts.
   { name: "booking-wizard", path: "/booking/cmtuhvfuu000tfyq8stoq3hb6" },
-  { name: "booking-legacy-id", path: "/booking/20" },
 ]
 
 const findings: Finding[] = []
